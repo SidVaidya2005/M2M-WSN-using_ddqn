@@ -1,0 +1,37 @@
+{
+  "DDQN (Trained)": {
+    "service_time": 99.4,
+    "service_time_std": 0.4898979485566356,
+    "total_energy": 0.0,
+    "avg_coverage": 48.524863177226806,
+    "energy_efficiency": 994.0
+  },
+  "Random": {
+    "service_time": 186.4,
+    "service_time_std": 1.019803902718557,
+    "total_energy": 0.0,
+    "avg_coverage": 49.97777316034287,
+    "energy_efficiency": 1864.0
+  },
+  "Greedy": {
+    "service_time": 193.0,
+    "service_time_std": 0.0,
+    "total_energy": 0.0,
+    "avg_coverage": 50.0,
+    "energy_efficiency": 1930.0
+  },
+  "Energy Conservative": {
+    "service_time": 0.0,
+    "service_time_std": 0.0,
+    "total_energy": 0.0,
+    "avg_coverage": 20.0,
+    "energy_efficiency": 0.0
+  },
+  "Balanced": {
+    "service_time": 98.0,
+    "service_time_std": 0.0,
+    "total_energy": 0.0,
+    "avg_coverage": 50.0,
+    "energy_efficiency": 980.0
+  }
+}

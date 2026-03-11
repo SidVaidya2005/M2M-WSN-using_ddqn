@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDQN Training Interface</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --bg-color: #0f172a;
+            --surface-color: #1e293b;
+            --primary-color: #3b82f6;
+            --primary-hover: #2563eb;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --success-color: #10b981;
+            --error-color: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            background-color: var(--surface-color);
+            padding: 1.5rem 2rem;
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+            background: linear-gradient(135deg, #60a5fa, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 2rem;
+            flex: 1;
+        }
+
+        .panel {
+            background-color: var(--surface-color);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            padding: 2rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        .form-control {
+            width: 100%;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+
+        .form-control:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        select.form-control {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1.25rem;
+        }
+
+        .btn {
+            width: 100%;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 0.875rem 1.5rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(1px);
+        }
+
+        .btn:disabled {
+            background-color: var(--border-color);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loader {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .results-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .image-container {
+            width: 100%;
+            background-color: var(--bg-color);
+            border: 1px dashed var(--border-color);
+            border-radius: 12px;
+            min-height: 400px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .image-container img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            display: none;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .placeholder-text {
+            color: var(--text-muted);
+            font-size: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .placeholder-text svg {
+            width: 48px;
+            height: 48px;
+            opacity: 0.5;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            display: none;
+        }
+
+        .metric-card {
+            background-color: var(--bg-color);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .metric-title {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .status-message {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            display: none;
+        }
+
+        .status-success {
+            background-color: rgba(16, 185, 129, 0.1);
+            color: var(--success-color);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+
+        .status-error {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: var(--error-color);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>🔬 DDQN Training Dashboard</h1>
+    </header>
+
+    <div class="container">
+        <!-- Configuration Panel -->
+        <div class="panel">
+            <h2>
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                Configurations
+            </h2>
+            
+            <form id="trainingForm">
+                <div class="form-group">
+                    <label for="episodes">Episodes</label>
+                    <input type="number" id="episodes" class="form-control" value="100" min="1" max="10000">
+                </div>
+                
+                <div class="form-group">
+                    <label for="nodes">Number of Nodes</label>
+                    <input type="number" id="nodes" class="form-control" value="550" min="10" max="2000">
+                </div>
+
+                <div class="form-group">
+                    <label for="lr">Learning Rate</label>
+                    <select id="lr" class="form-control">
+                        <option value="0.001">0.001</option>
+                        <option value="0.0001" selected>0.0001</option>
+                        <option value="0.00001">0.00001</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="gamma">Gamma (Discount Factor)</label>
+                    <input type="number" id="gamma" class="form-control" value="0.99" min="0" max="1" step="0.01">
+                </div>
+
+                <div class="form-group">
+                    <label for="batch_size">Batch Size</label>
+                    <select id="batch_size" class="form-control">
+                        <option value="32">32</option>
+                        <option value="64" selected>64</option>
+                        <option value="128">128</option>
+                        <option value="256">256</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="death_threshold">Network Death Threshold (%)</label>
+                    <input type="number" id="death_threshold" class="form-control" value="30" min="1" max="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="seed">Random Seed</label>
+                    <input type="number" id="seed" class="form-control" value="42" min="0">
+                </div>
+
+                <button type="submit" id="runBtn" class="btn">
+                    <span class="btn-text">Start Training</span>
+                    <div class="loader" id="loader"></div>
+                </button>
+
+                <div id="statusMessage" class="status-message"></div>
+            </form>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="panel results-panel">
+            <h2>
+                <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19V6l12-3v13M9 19c-1.105 0-2-.895-2-2s.895-2 2-2 2 .895 2 2-.895 2-2 2zm12-3c-1.105 0-2-.895-2-2s.895-2 2-2 2 .895 2 2-.895 2-2 2zM9 10l12-3"></path></svg>
+                Training Results
+            </h2>
+            
+            <div class="metrics-grid" id="metricsGrid">
+                <div class="metric-card">
+                    <div class="metric-title">Best Lifetime</div>
+                    <div class="metric-value" id="valBestLifetime">-</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Best Episode</div>
+                    <div class="metric-value" id="valBestEpisode">-</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-title">Avg Lifetime (Last 10)</div>
+                    <div class="metric-value" id="valAvgLifetime">-</div>
+                </div>
+            </div>
+
+            <div class="image-container" style="background-color: transparent; border: none; padding: 0; display: flex; flex-direction: column; gap: 1rem; align-items: stretch; min-height: auto;">
+                <div class="image-container" style="min-height: 400px; margin-bottom: 0;">
+                    <div class="placeholder-text" id="imagePlaceholder">
+                        <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z"></path></svg>
+                        Run training to view the generated plots here.
+                    </div>
+                    <!-- Add cache buster parameter when updating src -->
+                    <img id="resultImage" src="" alt="DDQN Training Results">
+                </div>
+                <!-- New GIF Container -->
+                <div class="image-container" id="gifContainer" style="display: none; min-height: auto;">
+                    <img id="resultGif" src="" alt="Best Episode Simulation" style="display: block; width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('trainingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const btn = document.getElementById('runBtn');
+            const btnText = btn.querySelector('.btn-text');
+            const loader = document.getElementById('loader');
+            const statusMsg = document.getElementById('statusMessage');
+            const resultImg = document.getElementById('resultImage');
+            const placeholder = document.getElementById('imagePlaceholder');
+            const metricsGrid = document.getElementById('metricsGrid');
+            
+            // Gather data
+            const payload = {
+                episodes: parseInt(document.getElementById('episodes').value),
+                nodes: parseInt(document.getElementById('nodes').value),
+                lr: parseFloat(document.getElementById('lr').value),
+                gamma: parseFloat(document.getElementById('gamma').value),
+                batch_size: parseInt(document.getElementById('batch_size').value),
+                death_threshold: parseFloat(document.getElementById('death_threshold').value) / 100.0,
+                seed: parseInt(document.getElementById('seed').value)
+            };
+
+            // Setup UI for loading
+            btn.disabled = true;
+            btnText.textContent = 'Training...';
+            loader.style.display = 'block';
+            statusMsg.style.display = 'none';
+            statusMsg.className = 'status-message';
+            document.getElementById('gifContainer').style.display = 'none';
+            
+            try {
+                const response = await fetch('/run_training', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.status === 'success') {
+                    // Success UI
+                    statusMsg.textContent = data.message;
+                    statusMsg.classList.add('status-success');
+                    statusMsg.style.display = 'block';
+                    
+                    // Display image with cache bust
+                    const timestamp = new Date().getTime();
+                    resultImg.src = `${data.image_url}?t=${timestamp}`;
+                    
+                    // Wait for image to load before showing it to avoid blank flash
+                    resultImg.onload = () => {
+                        placeholder.style.display = 'none';
+                        resultImg.style.display = 'block';
+                    };
+                    
+                    // Display GIF
+                    if (data.gif_url) {
+                        const gifContainer = document.getElementById('gifContainer');
+                        const resultGif = document.getElementById('resultGif');
+                        resultGif.src = `${data.gif_url}?t=${timestamp}`;
+                        gifContainer.style.display = 'block';
+                    }
+                    
+                    // Update metrics
+                    if(data.results) {
+                        document.getElementById('valBestLifetime').textContent = data.results.best_lifetime;
+                        document.getElementById('valBestEpisode').textContent = data.results.best_episode;
+                        document.getElementById('valAvgLifetime').textContent = data.results.avg_lifetime_final_10.toFixed(1);
+                        metricsGrid.style.display = 'grid';
+                    }
+
+                } else {
+                    // Error UI from server
+                    throw new Error(data.message || 'Unknown server error');
+                }
+            } catch (err) {
+                // Error UI
+                statusMsg.textContent = `Error: ${err.message}`;
+                statusMsg.classList.add('status-error');
+                statusMsg.style.display = 'block';
+            } finally {
+                // Restore UI
+                btn.disabled = false;
+                btnText.textContent = 'Start Training';
+                loader.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
