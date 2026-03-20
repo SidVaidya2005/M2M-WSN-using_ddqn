@@ -1,46 +1,75 @@
 #!/usr/bin/env python3
 """
-Final DDQN Training Script - Focus on NETWORK LIFETIME
-- Use BEST reward weights found through analysis
-- Priority: Network stays alive as long as possible
-- Not about energy conservation, not about battery health
-- Just: KEEP THE NETWORK WORKING
+Legacy training script for backward compatibility.
+
+⚠️  DEPRECATED: Use scripts/train_model.py instead
+    python scripts/train_model.py --episodes 100
+
+This module is maintained to support existing code that imports train_final_ddqn().
 """
 
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from env_wsn import WSNEnv
-from ddqn_agent import DDQNAgent
 import torch
-import json
+from typing import Tuple, Dict
 
-os.makedirs('results', exist_ok=True)
+from config.settings import get_config
+from src.agents.ddqn_agent import DDQNAgent
+from src.envs.wsn_env import WSNEnv
+from src.training.trainer import Trainer
+from src.utils.logger import get_logger
+from src.utils.visualization import plot_training_curve, save_metrics_json
+
+logger = get_logger(__name__)
 
 
-def train_final_ddqn(episodes=100, seed=42, N=550, lr=1e-4, gamma=0.99, batch_size=64, death_threshold=0.3):
+def train_final_ddqn(
+    episodes: int = 100,
+    seed: int = 42,
+    N: int = 550,
+    lr: float = 1e-4,
+    gamma: float = 0.99,
+    batch_size: int = 64,
+    death_threshold: float = 0.3,
+) -> Tuple[DDQNAgent, Dict]:
     """
-    Train DDQN to Maximize Network Lifetime
+    Legacy training function for backward compatibility.
     
-    Focus on learning an optimal scheduling policy that:
-    - Maximizes how long the network stays functional
-    - Maintains good coverage during operation
-    - Balances energy efficiency with performance
+    Trains DDQN agent to maximize network lifetime while maintaining coverage.
+    
+    Args:
+        episodes: Training episodes
+        seed: Random seed
+        N: Number of nodes
+        lr: Learning rate
+        gamma: Discount factor
+        batch_size: Training batch size
+        death_threshold: Network death threshold
+        
+    Returns:
+        Tuple of (trained_agent, results_dict)
     """
+    config = get_config()
+    config.paths.create_all()
     
     np.random.seed(seed)
     torch.manual_seed(seed)
     
-    # Environment
-    env = WSNEnv(N=N, death_threshold=death_threshold)
+    # Create environment
+    env = WSNEnv(
+        N=N,
+        arena_size=tuple(config.environment.arena_size),
+        sink=tuple(config.environment.sink_position),
+        max_steps=config.environment.max_steps,
+        death_threshold=death_threshold,
+        seed=seed,
+    )
     
-    # DDQN Agent (original, proven architecture)
+    # Create agent
     state_dim = env.observation_space.shape[0]
     action_dim = 2
-    
     agent = DDQNAgent(
         state_dim=state_dim,
         action_dim=action_dim,
@@ -50,103 +79,55 @@ def train_final_ddqn(episodes=100, seed=42, N=550, lr=1e-4, gamma=0.99, batch_si
         batch_size=batch_size,
     )
     
+    # Create trainer
+    trainer = Trainer(agent, env, logger_obj=logger, seed=seed)
+    
+    # Print header
     print(f"\n{'='*80}")
     print(f"DDQN TRAINING - NETWORK LIFETIME OPTIMIZATION")
     print(f"{'='*80}")
     print(f"Episodes: {episodes}")
     print(f"Nodes: {N}")
-    print(f"Objective: Learn optimal scheduling policy for maximum network lifetime")
-    print(f"Strategy: Reward coverage heavily, balance energy efficiency, maintain fairness")
+    print(f"Learning Rate: {lr}")
+    print(f"Gamma: {gamma}")
     print(f"{'='*80}\n")
     
-    # Track metrics
-    lifetime_history = []
-    coverage_history = []
-    soh_history = []
-    reward_history = []
+    # Train
+    rewards, metrics = trainer.train(episodes=episodes)
     
-    # Best models
-    best_lifetime = 0
-    best_lifetime_model = None
-    
-    for episode in range(1, episodes + 1):
-        state = env.reset()
-        episode_lifetime = 0
-        episode_coverage = []
-        episode_soh = []
-        episode_reward = 0 # Initialize episode reward
-        
-        done = False
-        while not done:
-            # Learn policy
-            prev_state = state  # Save current state BEFORE stepping
-            action = agent.select_action(state)
-            state, reward, done, info = env.step(action)
-            
-            agent.store(prev_state, action, reward, state, done)  # Fix: store prev_state, not current state
-            agent.train_step()
-            
-            episode_lifetime += 1
-            episode_reward += reward
-            episode_coverage.append(info.get('coverage_ratio', 0) * 100)
-            episode_soh.append(info.get('avg_soh', 1.0))
-        
-        lifetime_history.append(episode_lifetime)
-        coverage_history.append(np.mean(episode_coverage))
-        soh_history.append(np.mean(episode_soh))
-        reward_history.append(episode_reward)
-        
-        # Save best model by lifetime
-        if episode_lifetime > best_lifetime:
-            best_lifetime = episode_lifetime
-            best_lifetime_model = episode
-            torch.save(agent.q_net.state_dict(), f'results/final_ddqn_best_lifetime_ep{episode}.pth')
-        
-        # Print every 10 episodes
-        if episode % 10 == 0 or episode == 1:
-            avg_lifetime = np.mean(lifetime_history[-10:])
-            avg_coverage = np.mean(coverage_history[-10:])
-            print(f"Ep {episode:3d}/100 | Lifetime: {episode_lifetime:4d} (avg: {avg_lifetime:6.1f}) | "
-                  f"Coverage: {avg_coverage:5.1f}% | SoH: {np.mean(episode_soh):7.5f}")
-    
+    # Print summary
     print(f"\n{'='*80}")
     print(f"TRAINING COMPLETE")
     print(f"{'='*80}")
-    print(f"Best Episode: {best_lifetime_model} with lifetime {best_lifetime} steps")
-    print(f"Final 10-Ep Avg Lifetime: {np.mean(lifetime_history[-10:]):.1f} steps")
-    print(f"Final 10-Ep Avg Coverage: {np.mean(coverage_history[-10:]):.1f}%")
-    print(f"\n📊 DDQN Performance Summary:")
-    print(f"   Average Network Lifetime: {np.mean(lifetime_history[-10:]):.1f} steps")
-    print(f"   Network Coverage Maintained: {np.mean(coverage_history[-10:]):.1f}%")
-    
+    mean_reward = np.mean(rewards[-10:])
+    print(f"Final 10-ep Mean Reward: {mean_reward:.2f}")
+    print(f"Final 10-ep Mean Coverage: {np.mean([m.get('mean_coverage', 0) for m in metrics[-10:]]):.1f}%")
     print(f"{'='*80}\n")
     
-    # Plot training curves
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('DDQN Training - Focus on Network Lifetime', fontsize=14, fontweight='bold')
+    # Save model
+    model_path = os.path.join(config.paths.models, "final_ddqn_latest.pth")
+    trainer.save_checkpoint(model_path)
     
-    # Lifetime
-    axes[0, 0].plot(lifetime_history, linewidth=2, marker='o', markersize=4, color='blue', label='DDQN Lifetime')
-    axes[0, 0].axhline(np.mean(lifetime_history[-10:]), color='g', linestyle='--', linewidth=2, label='Final Avg (Last 10 Ep)')
-    axes[0, 0].set_title('Network Lifetime per Episode', fontweight='bold')
-    axes[0, 0].set_ylabel('Steps')
-    axes[0, 0].set_xlabel('Episode')
-    axes[0, 0].legend()
-    axes[0, 0].grid(True, alpha=0.3)
+    # Plot training curve
+    plot_path = os.path.join(config.paths.visualizations, "final_ddqn_training.png")
+    plot_training_curve(rewards, output_path=plot_path)
     
-    # Coverage
-    axes[0, 1].plot(coverage_history, linewidth=2, marker='s', markersize=4, color='orange')
-    axes[0, 1].set_title('Average Coverage %', fontweight='bold')
-    axes[0, 1].set_ylabel('Coverage %')
-    axes[0, 1].set_xlabel('Episode')
-    axes[0, 1].grid(True, alpha=0.3)
+    # Save metrics
+    metrics_data = {
+        "rewards": rewards,
+        "metrics": metrics,
+        "config": {
+            "episodes": episodes,
+            "nodes": N,
+            "lr": lr,
+            "gamma": gamma,
+            "batch_size": batch_size,
+        },
+    }
+    metrics_path = os.path.join(config.paths.metrics, "final_ddqn_results.json")
+    save_metrics_json(metrics_data, metrics_path)
     
-    # SoH
-    axes[1, 0].plot(soh_history, linewidth=2, marker='^', markersize=4, color='green')
-    axes[1, 0].set_title('Average Battery SoH', fontweight='bold')
-    axes[1, 0].set_ylabel('SoH')
-    axes[1, 0].set_xlabel('Episode')
-    axes[1, 0].grid(True, alpha=0.3)
+    return agent, metrics_data
     
     # Reward
     axes[1, 1].plot(reward_history, linewidth=2, marker='d', markersize=4, color='purple')

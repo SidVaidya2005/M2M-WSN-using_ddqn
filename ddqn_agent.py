@@ -1,53 +1,19 @@
-# ddqn_agent.py
-import random
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from collections import deque, namedtuple
+"""
+Legacy DDQN agent implementation for backward compatibility.
 
-# Replay buffer
-Transition = namedtuple('Transition', ('state', 'action', 'reward', 'next_state', 'done'))
+⚠️  DEPRECATED: Use src.agents.DDQNAgent instead
+    from src.agents import DDQNAgent
 
-class ReplayBuffer:
-    def __init__(self, capacity=100000):
-        self.buffer = deque(maxlen=capacity)
+This module is maintained to avoid breaking existing imports and scripts.
+All new code should import from src.agents.
+"""
 
-    def push(self, *args):
-        self.buffer.append(Transition(*args))
-
-    def sample(self, batch_size):
-        batch = random.sample(self.buffer, batch_size)
-        return Transition(*zip(*batch))
-
-    def __len__(self):
-        return len(self.buffer)
-
-# Q-network
-class QNetwork(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden=[512,256]):
-        super().__init__()
-        layers = []
-        last = input_dim
-        for h in hidden:
-            layers.append(nn.Linear(last, h))
-            layers.append(nn.ReLU())
-            last = h
-        layers.append(nn.Linear(last, output_dim))
-        self.net = nn.Sequential(*layers)
-
-    def forward(self, x):
-        return self.net(x)
-
-class DDQNAgent:
-    def __init__(self, state_dim, action_dim, node_count, lr=1e-4, gamma=0.99,
-                 batch_size=64, buffer_size=200000, min_replay_size=500,
-                 update_target_every=1000, device=None):
-        """
-        state_dim: size of observation vector (e.g., env.observation_space.shape[0])
-        action_dim: number of discrete actions per node (2)
-        node_count: number of nodes
-        We'll flatten action space: outputs = node_count * action_dim,
+from src.agents.ddqn_agent import (
+    DDQNAgent,
+    QNetwork,
+    ReplayBuffer,
+    Transition,
+)
         But to use DDQN nicely, we treat the Q outputs as Q-values for each node-action pair.
         Simpler: we compute Q-values per node independently by reshaping last layer to (node_count, action_dim)
         """

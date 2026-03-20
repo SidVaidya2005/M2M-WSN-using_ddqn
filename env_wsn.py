@@ -1,53 +1,17 @@
-# env_wsn.py
-import numpy as np
-import gymnasium as gym
-from gym import spaces
+"""
+Legacy WSN environment implementation for backward compatibility.
 
-class BatteryModel:
-    """
-    Simple battery model with SoC and SoH.
-    SoC: available energy (0..E_max).
-    SoH: health percentage (0..1). Degrades with deep discharge cycles.
-    We'll implement a per-step degradation rule:
-      - A small calendar fade each timestep (very small)
-      - Cycle-related degradation: degradation ∝ (DoD)^alpha * k
-    This is a simplified model (justify vs literature in paper).
-    """
-    def __init__(self, E_max=100.0, soh_init=1.0, k_cycle=1e-4, alpha=1.2, calendar_decay=1e-6):
-        self.E_max = E_max
-        self.soc = E_max
-        self.soh = soh_init
-        self.k_cycle = k_cycle
-        self.alpha = alpha
-        self.calendar_decay = calendar_decay
-        self.prev_soc = self.soc
+⚠️  DEPRECATED: Use src.envs instead
+    from src.envs import WSNEnv, BatteryModel
 
-    def discharge(self, energy_draw):
-        # energy_draw >= 0
-        self.prev_soc = self.soc
-        self.soc = max(0.0, self.soc - energy_draw)
-        # compute DoD for this small step relative to capacity (percentage)
-        dod = abs(self.prev_soc - self.soc) / self.E_max  # 0..1
-        # apply cycle-related degradation (approximation)
-        if dod > 0:
-            self.soh -= self.k_cycle * (dod ** self.alpha)
-        # apply calendar fade
-        self.soh -= self.calendar_decay
-        self.soh = max(0.0, min(1.0, self.soh))
+This module is maintained to avoid breaking existing imports and scripts.
+All new code should import from src.envs.
+"""
 
-    def charge(self, energy_add):
-        self.prev_soc = self.soc
-        self.soc = min(self.E_max, self.soc + energy_add)
-        # charging stress could also affect soh slightly; skip or add small positive effect
-        # keep it simple for now.
+from src.envs.battery_model import BatteryModel
+from src.envs.wsn_env import WSNEnv
 
-    def is_dead(self, soc_threshold=0.01, soh_threshold=0.05):
-        return (self.soc <= soc_threshold) or (self.soh <= soh_threshold)
-
-class WSNEnv(gym.Env):
-    """
-    Gym-like environment for WSN sleep/awake scheduling with battery SoH.
-    Centralized action vector: for N nodes, action vector length N with discrete choices:
+__all__ = ["BatteryModel", "WSNEnv"]
       0 -> SLEEP
       1 -> AWAKE
     Observation: concatenated per-node features:

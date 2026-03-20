@@ -1,51 +1,29 @@
-# baselines.py
 """
-Baseline policies for WSN scheduling to compare against DDQN
+Legacy baseline policies for backward compatibility.
+
+⚠️  DEPRECATED: Use src.baselines instead
+    from src.baselines import RandomPolicy, GreedyPolicy, EnergyConservativePolicy
+
+This module is maintained to avoid breaking existing imports and scripts.
+All new code should import from src.baselines.
 """
-import numpy as np
-import random
 
+from src.baselines.baseline_policies import (
+    RandomPolicy,
+    GreedyPolicy,
+    EnergyConservativePolicy,
+    BalancedRotationPolicy,
+)
 
-class RandomPolicy:
-    """
-    Baseline: Random sleep/awake decisions for each node
-    """
-    def __init__(self, state_dim, action_dim, node_count):
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.node_count = node_count
-    
-    def select_action(self, state, eval_mode=False):
-        """
-        Returns random action for each node (0: sleep, 1: awake)
-        """
-        return np.random.randint(0, self.action_dim, size=self.node_count)
-    
-    def store(self, state, action, reward, next_state, done):
-        """No-op for random policy"""
-        pass
-    
-    def train_step(self):
-        """No-op for random policy"""
-        return None
+# Legacy alias for BalancedRotationPolicy
+BalancedPolicy = BalancedRotationPolicy
 
-
-class GreedyPolicy:
-    """
-    Baseline: Greedy heuristic - wake nodes with high SoC/SoH
-    Keep ~50% of nodes awake, prioritize healthy, high-energy nodes
-    """
-    def __init__(self, state_dim, action_dim, node_count, awake_ratio=0.5):
-        self.state_dim = state_dim
-        self.action_dim = action_dim
-        self.node_count = node_count
-        self.awake_ratio = awake_ratio
-    
-    def select_action(self, state, eval_mode=False):
-        """
-        Greedy: wake nodes with highest (SoC * SoH) score
-        """
-        # State format: [soc_norm, soh, last_action, dist_norm, recent_activity] * N
+__all__ = [
+    "RandomPolicy",
+    "GreedyPolicy",
+    "EnergyConservativePolicy",
+    "BalancedPolicy",
+]
         obs_dim_per_node = 5
         
         scores = []
