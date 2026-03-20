@@ -1,0 +1,33 @@
+training:
+  episodes: 100
+  batch_size: 64
+  learning_rate: 1.0e-4
+  gamma: 0.99
+  epsilon_start: 1.0
+  epsilon_end: 0.05
+  epsilon_decay: 100000
+  target_update_frequency: 1000
+  replay_buffer_size: 200000
+  min_replay_size: 500
+
+environment:
+  num_nodes: 550
+  arena_size: [500, 500]
+  sink_position: [250, 250]
+  max_steps: 10000
+  timestep_energy_awake: 1.0
+  energy_sleep: 0.01
+  death_threshold: 0.3
+  seed: 42
+
+paths:
+  models: results/models
+  metrics: results/metrics
+  visualizations: results/visualizations
+  logs: logs
+
+visualization:
+  save_plots: true
+  save_gif: true
+  plot_dpi: 150
+  animation_interval: 100
