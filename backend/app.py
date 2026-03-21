@@ -1,6 +1,6 @@
 """Flask web server for WSN DDQN training platform."""
 
-from flask import Flask, render_template
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 from pathlib import Path
 
@@ -44,6 +44,12 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     @app.errorhandler(500)
     def internal_error(error):
         return {"error": "Internal server error", "message": str(error)}, 500
+
+    @app.route("/index.css")
+    def serve_index_css():
+        """Serve template stylesheet used by index page."""
+        templates_dir = Path(__file__).resolve().parent.parent / "templates"
+        return send_from_directory(templates_dir, "index.css")
     
     return app
 
