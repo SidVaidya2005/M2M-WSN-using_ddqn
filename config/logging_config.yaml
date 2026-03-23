@@ -1,8 +1,5 @@
-"""
-Logging configuration for the WSN DDQN Training Platform.
-
-Structured logging setup with file and console handlers.
-"""
+# Logging configuration for the WSN DDQN Training Platform.
+# Structured logging setup with file and console handlers.
 
 version: 1
 disable_existing_loggers: false
@@ -11,13 +8,13 @@ formatters:
   standard:
     format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     datefmt: "%Y-%m-%d %H:%M:%S"
-  
+
   detailed:
     format: "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
     datefmt: "%Y-%m-%d %H:%M:%S"
-  
+
   json:
-    format: "%(message)s"  # Will be formatted as JSON by handler
+    format: "%(message)s" # Will be formatted as JSON by handler
 
 handlers:
   console:
@@ -25,15 +22,15 @@ handlers:
     level: INFO
     formatter: standard
     stream: ext://sys.stdout
-  
+
   file:
     class: logging.handlers.RotatingFileHandler
     level: DEBUG
     formatter: detailed
     filename: logs/app.log
-    maxBytes: 10485760  # 10MB
+    maxBytes: 10485760 # 10MB
     backupCount: 5
-  
+
   training_file:
     class: logging.FileHandler
     level: INFO
@@ -45,22 +42,22 @@ loggers:
     level: DEBUG
     handlers: [console, file]
     propagate: false
-  
+
   src.training:
     level: INFO
     handlers: [console, training_file]
     propagate: false
-  
+
   src.agents:
     level: DEBUG
     handlers: [console, file]
     propagate: false
-  
+
   src.envs:
     level: DEBUG
     handlers: [console, file]
     propagate: false
-  
+
   backend:
     level: INFO
     handlers: [console, file]

@@ -1,8 +1,15 @@
 """Flask web server for WSN DDQN training platform."""
 
+import sys
 from flask import Flask, send_from_directory
 from flask_cors import CORS
 from pathlib import Path
+
+# Allow `python backend/app.py` to resolve top-level imports from project root.
+if __package__ in (None, ""):
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
 
 from config.settings import get_config
 
@@ -33,7 +40,10 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     config.paths.create_all()
     
     # Register blueprints
-    from .routes import api_bp
+    try:
+        from .routes import api_bp
+    except ImportError:
+        from backend.routes import api_bp
     app.register_blueprint(api_bp, url_prefix="/api")
     
     # Register error handlers
