@@ -55,6 +55,18 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     def internal_error(error):
         return {"error": "Internal server error", "message": str(error)}, 500
 
+    @app.route("/")
+    def serve_index():
+        """Serve the main HTML page."""
+        templates_dir = Path(__file__).resolve().parent.parent / "templates"
+        return send_from_directory(templates_dir, "index.html")
+
+    @app.route("/templates/<path:filename>")
+    def serve_template_assets(filename):
+        """Serve CSS and JS files from the templates directory."""
+        templates_dir = Path(__file__).resolve().parent.parent / "templates"
+        return send_from_directory(templates_dir, filename)
+
     @app.route("/index.css")
     def serve_index_css():
         """Serve template stylesheet used by index page."""
@@ -66,4 +78,4 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
 
 if __name__ == "__main__":
     app = create_app()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5001)

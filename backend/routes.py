@@ -54,10 +54,13 @@ def train_model():
         lr = float(data.get("learning_rate", config.training.learning_rate))
         gamma = float(data.get("gamma", config.training.gamma))
         batch_size = int(data.get("batch_size", config.training.batch_size))
+        death_threshold = float(data.get("death_threshold", config.environment.death_threshold))
+        seed = int(data.get("seed", 42))
         
         logger.info(
             f"Starting training: episodes={episodes}, nodes={nodes}, "
-            f"lr={lr}, batch_size={batch_size}"
+            f"lr={lr}, batch_size={batch_size}, "
+            f"death_threshold={death_threshold}, seed={seed}"
         )
         
         # Create environment
@@ -66,7 +69,7 @@ def train_model():
             arena_size=tuple(config.environment.arena_size),
             sink=tuple(config.environment.sink_position),
             max_steps=config.environment.max_steps,
-            death_threshold=config.environment.death_threshold,
+            death_threshold=death_threshold,
         )
         
         # Create agent
@@ -82,7 +85,7 @@ def train_model():
         )
         
         # Create trainer
-        trainer = Trainer(agent, env, logger_obj=logger)
+        trainer = Trainer(agent, env, logger_obj=logger, seed=seed)
         
         # Train
         rewards, metrics = trainer.train(episodes=episodes)

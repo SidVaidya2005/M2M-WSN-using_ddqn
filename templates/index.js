@@ -50,7 +50,7 @@ trainingForm.addEventListener("submit", async (e) => {
   gifContainer.style.display = "none";
 
   try {
-    const response = await fetch("/api/train", {
+    const response = await fetch("http://127.0.0.1:5001/api/train", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
