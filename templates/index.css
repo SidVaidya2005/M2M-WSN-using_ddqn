@@ -49,12 +49,18 @@ body {
 }
 
 .dashboard-layout {
-  max-width: 1400px;
+  width: min(1400px, 100%);
   margin: 0 auto;
   padding: 2rem;
   display: grid;
-  grid-template-columns: 350px 1fr;
+  grid-template-columns: minmax(300px, 350px) minmax(0, 1fr);
   gap: 2rem;
+  align-items: start;
+}
+
+.config-panel {
+  position: sticky;
+  top: 1.5rem;
 }
 
 .card-panel {
@@ -167,6 +173,7 @@ select.form-control {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  min-width: 0;
 }
 
 .results-media-stack {
@@ -307,5 +314,10 @@ select.form-control {
 @media (max-width: 1024px) {
   .dashboard-layout {
     grid-template-columns: 1fr;
+    padding: 1.25rem;
+  }
+
+  .config-panel {
+    position: static;
   }
 }
