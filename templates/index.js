@@ -4,7 +4,7 @@ trainingForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const runButton = document.getElementById("runBtn");
-  const buttonText = runButton.querySelector(".btn-text");
+  const buttonText = document.getElementById("runBtnText");
   const loader = document.getElementById("loader");
   const statusMessage = document.getElementById("statusMessage");
   const resultImage = document.getElementById("resultImage");

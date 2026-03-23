@@ -49,21 +49,27 @@ body {
 }
 
 .dashboard-layout {
-  width: min(1400px, 100%);
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   padding: 2rem;
   display: grid;
-  grid-template-columns: minmax(300px, 350px) minmax(0, 1fr);
+  grid-template-columns: 350px minmax(0, 1fr);
   gap: 2rem;
   align-items: start;
 }
 
 .config-panel {
+  background-color: var(--surface-color);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  padding: 2rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   position: sticky;
   top: 1.5rem;
+  left: 1rem;
 }
 
-.card-panel {
+.results-panel {
   background-color: var(--surface-color);
   border-radius: 12px;
   border: 1px solid var(--border-color);
@@ -187,7 +193,8 @@ select.form-control {
   min-height: auto;
 }
 
-.image-container {
+.training-image,
+.simulation-gif {
   width: 100%;
   background-color: var(--bg-color);
   border: 1px dashed var(--border-color);
@@ -200,17 +207,17 @@ select.form-control {
   position: relative;
 }
 
-.training-image-box {
+.training-image {
   min-height: 400px;
   margin-bottom: 0;
 }
 
-.simulation-gif-box {
+.simulation-gif {
   display: none;
   min-height: auto;
 }
 
-.image-container img {
+.training-image img {
   width: 100%;
   height: auto;
   border-radius: 8px;
@@ -219,7 +226,7 @@ select.form-control {
   animation: fadeIn 0.5s ease-out;
 }
 
-.result-gif {
+#resultGif {
   display: block;
   width: 100%;
   height: auto;
