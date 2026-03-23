@@ -1,4 +1,25 @@
 const trainingForm = document.getElementById("trainingForm");
+const resultImage = document.getElementById("resultImage");
+const imagePlaceholder = document.getElementById("imagePlaceholder");
+
+function showResultImageIfAvailable() {
+  if (!resultImage || !imagePlaceholder || !resultImage.getAttribute("src")) {
+    return;
+  }
+
+  const revealImage = () => {
+    imagePlaceholder.style.display = "none";
+    resultImage.style.display = "block";
+  };
+
+  if (resultImage.complete && resultImage.naturalWidth > 0) {
+    revealImage();
+  } else {
+    resultImage.addEventListener("load", revealImage, { once: true });
+  }
+}
+
+showResultImageIfAvailable();
 
 trainingForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -7,8 +28,6 @@ trainingForm.addEventListener("submit", async (e) => {
   const buttonText = document.getElementById("runBtnText");
   const loader = document.getElementById("loader");
   const statusMessage = document.getElementById("statusMessage");
-  const resultImage = document.getElementById("resultImage");
-  const imagePlaceholder = document.getElementById("imagePlaceholder");
   const metricsGrid = document.getElementById("metricsGrid");
   const gifContainer = document.getElementById("gifContainer");
 
