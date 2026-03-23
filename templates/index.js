@@ -34,7 +34,7 @@ trainingForm.addEventListener("submit", async (e) => {
   const payload = {
     episodes: parseInt(document.getElementById("episodes").value),
     nodes: parseInt(document.getElementById("nodes").value),
-    lr: parseFloat(document.getElementById("lr").value),
+    learning_rate: parseFloat(document.getElementById("lr").value),
     gamma: parseFloat(document.getElementById("gamma").value),
     batch_size: parseInt(document.getElementById("batch_size").value),
     death_threshold:
@@ -50,7 +50,7 @@ trainingForm.addEventListener("submit", async (e) => {
   gifContainer.style.display = "none";
 
   try {
-    const response = await fetch("/run_training", {
+    const response = await fetch("/api/train", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -59,20 +59,28 @@ trainingForm.addEventListener("submit", async (e) => {
     const data = await response.json();
 
     if (response.ok && data.status === "success") {
-      statusMessage.textContent = data.message;
+      const meanReward = Number(data.mean_reward);
+      const maxReward = Number(data.max_reward);
+      statusMessage.textContent =
+        data.message ||
+        `Training completed successfully. Mean reward: ${Number.isFinite(meanReward) ? meanReward.toFixed(2) : "N/A"}`;
       statusMessage.classList.add("status-success");
       statusMessage.style.display = "block";
 
-      const timestamp = new Date().getTime();
-      resultImage.src = `${data.image_url}?t=${timestamp}`;
-
-      resultImage.onload = () => {
-        imagePlaceholder.style.display = "none";
-        resultImage.style.display = "block";
-      };
+      if (data.image_url) {
+        const timestamp = new Date().getTime();
+        resultImage.src = `${data.image_url}?t=${timestamp}`;
+        resultImage.onload = () => {
+          imagePlaceholder.style.display = "none";
+          resultImage.style.display = "block";
+        };
+      } else {
+        showResultImageIfAvailable();
+      }
 
       if (data.gif_url) {
         const resultGif = document.getElementById("resultGif");
+        const timestamp = new Date().getTime();
         resultGif.src = `${data.gif_url}?t=${timestamp}`;
         gifContainer.style.display = "block";
       }
@@ -84,6 +92,17 @@ trainingForm.addEventListener("submit", async (e) => {
           data.results.best_episode;
         document.getElementById("valAvgLifetime").textContent =
           data.results.avg_lifetime_final_10.toFixed(1);
+        metricsGrid.style.display = "grid";
+      } else {
+        document.getElementById("valBestLifetime").textContent =
+          Number.isFinite(maxReward) ? maxReward.toFixed(2) : "-";
+        document.getElementById("valBestEpisode").textContent =
+          data.episodes ?? "-";
+        document.getElementById("valAvgLifetime").textContent = Number.isFinite(
+          meanReward,
+        )
+          ? meanReward.toFixed(2)
+          : "-";
         metricsGrid.style.display = "grid";
       }
     } else {
