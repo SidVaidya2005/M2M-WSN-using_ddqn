@@ -34,6 +34,7 @@ trainingForm.addEventListener("submit", async (e) => {
   const payload = {
     episodes: parseInt(document.getElementById("episodes").value),
     nodes: parseInt(document.getElementById("nodes").value),
+    model_type: document.getElementById("model_type").value,
     learning_rate: parseFloat(document.getElementById("lr").value),
     gamma: parseFloat(document.getElementById("gamma").value),
     batch_size: parseInt(document.getElementById("batch_size").value),
@@ -61,6 +62,13 @@ trainingForm.addEventListener("submit", async (e) => {
     if (response.ok && data.status === "success") {
       const meanReward = Number(data.mean_reward);
       const maxReward = Number(data.max_reward);
+      const bestLifetime = Number(data.results?.best_lifetime ?? maxReward);
+      const bestEpisode = Number(
+        data.results?.best_episode ?? data.episodes ?? 0,
+      );
+      const avgLifetimeFinal10 = Number(
+        data.results?.avg_lifetime_final_10 ?? meanReward,
+      );
       statusMessage.textContent =
         data.message ||
         `Training completed successfully. Mean reward: ${Number.isFinite(meanReward) ? meanReward.toFixed(2) : "N/A"}`;
@@ -85,26 +93,22 @@ trainingForm.addEventListener("submit", async (e) => {
         gifContainer.style.display = "block";
       }
 
-      if (data.results) {
-        document.getElementById("valBestLifetime").textContent =
-          data.results.best_lifetime;
-        document.getElementById("valBestEpisode").textContent =
-          data.results.best_episode;
-        document.getElementById("valAvgLifetime").textContent =
-          data.results.avg_lifetime_final_10.toFixed(1);
-        metricsGrid.style.display = "grid";
-      } else {
-        document.getElementById("valBestLifetime").textContent =
-          Number.isFinite(maxReward) ? maxReward.toFixed(2) : "-";
-        document.getElementById("valBestEpisode").textContent =
-          data.episodes ?? "-";
-        document.getElementById("valAvgLifetime").textContent = Number.isFinite(
-          meanReward,
-        )
-          ? meanReward.toFixed(2)
-          : "-";
-        metricsGrid.style.display = "grid";
-      }
+      document.getElementById("valBestLifetime").textContent = Number.isFinite(
+        bestLifetime,
+      )
+        ? bestLifetime.toFixed(2)
+        : "-";
+      document.getElementById("valBestEpisode").textContent = Number.isFinite(
+        bestEpisode,
+      )
+        ? String(Math.trunc(bestEpisode))
+        : "-";
+      document.getElementById("valAvgLifetime").textContent = Number.isFinite(
+        avgLifetimeFinal10,
+      )
+        ? avgLifetimeFinal10.toFixed(2)
+        : "-";
+      metricsGrid.style.display = "grid";
     } else {
       throw new Error(data.message || "Unknown server error");
     }

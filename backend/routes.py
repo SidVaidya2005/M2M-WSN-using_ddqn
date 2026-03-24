@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from pathlib import Path
 
 from config.settings import get_config
+from src.agents.dqn_agent import DQNAgent
 from src.agents.ddqn_agent import DDQNAgent
 from src.envs.wsn_env import WSNEnv
 from src.training.trainer import Trainer
@@ -56,11 +57,19 @@ def train_model():
         batch_size = int(data.get("batch_size", config.training.batch_size))
         death_threshold = float(data.get("death_threshold", config.environment.death_threshold))
         seed = int(data.get("seed", 42))
+        model_type = str(data.get("model_type", "ddqn")).lower()
+
+        valid_models = {"dqn", "ddqn"}
+        if model_type not in valid_models:
+            return jsonify({
+                "status": "error",
+                "message": f"Invalid model_type '{model_type}'. Choose one of: dqn, ddqn.",
+            }), 400
         
         logger.info(
             f"Starting training: episodes={episodes}, nodes={nodes}, "
             f"lr={lr}, batch_size={batch_size}, "
-            f"death_threshold={death_threshold}, seed={seed}"
+            f"death_threshold={death_threshold}, seed={seed}, model_type={model_type}"
         )
         
         # Create environment
@@ -75,7 +84,8 @@ def train_model():
         # Create agent
         state_dim = env.observation_space.shape[0]
         action_dim = 2
-        agent = DDQNAgent(
+        agent_class = DDQNAgent if model_type == "ddqn" else DQNAgent
+        agent = agent_class(
             state_dim=state_dim,
             action_dim=action_dim,
             node_count=nodes,
@@ -88,19 +98,38 @@ def train_model():
         trainer = Trainer(agent, env, logger_obj=logger, seed=seed)
         
         # Train
-        rewards, metrics = trainer.train(episodes=episodes)
+        rewards, _ = trainer.train(episodes=episodes)
         
         # Save model
-        model_path = Path(config.paths.models) / "trained_model.pth"
+        model_path = Path(config.paths.models) / f"trained_model_{model_type}.pth"
         trainer.save_checkpoint(str(model_path))
         
         # Prepare results
+        mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
+        max_reward = float(max(rewards)) if rewards else 0.0
+        if rewards:
+            best_episode = rewards.index(max(rewards)) + 1
+            trailing_count = min(10, len(rewards))
+            avg_lifetime_final_10 = float(
+                sum(rewards[-trailing_count:]) / trailing_count
+            )
+        else:
+            best_episode = 0
+            avg_lifetime_final_10 = 0.0
+
         results = {
             "status": "success",
+            "message": f"Training completed successfully with {model_type.upper()}.",
             "episodes": episodes,
             "nodes": nodes,
-            "mean_reward": float(sum(rewards) / len(rewards)),
-            "max_reward": float(max(rewards)),
+            "model_type": model_type,
+            "mean_reward": mean_reward,
+            "max_reward": max_reward,
+            "results": {
+                "best_lifetime": max_reward,
+                "best_episode": best_episode,
+                "avg_lifetime_final_10": avg_lifetime_final_10,
+            },
             "model_path": str(model_path),
         }
         

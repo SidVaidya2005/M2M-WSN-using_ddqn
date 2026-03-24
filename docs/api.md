@@ -95,6 +95,7 @@ Start training a new model.
 {
   "episodes": 100,
   "nodes": 550,
+  "model_type": "ddqn",
   "learning_rate": 0.0001,
   "gamma": 0.99,
   "batch_size": 64,
@@ -106,6 +107,7 @@ Start training a new model.
 | ------------- | ----- | ------- | ------------ |
 | episodes      | int   | 100     | 1-10000      |
 | nodes         | int   | 550     | 10-10000     |
+| model_type    | str   | ddqn    | dqn or ddqn  |
 | learning_rate | float | 1e-4    | 1e-6 to 1e-1 |
 | gamma         | float | 0.99    | 0.0-1.0      |
 | batch_size    | int   | 64      | 8-512        |
@@ -116,13 +118,23 @@ Start training a new model.
 ```json
 {
   "status": "success",
+  "message": "Training completed successfully with DDQN.",
   "episodes": 100,
   "nodes": 550,
+  "model_type": "ddqn",
   "mean_reward": 145.32,
   "max_reward": 180.5,
-  "model_path": "results/models/trained_model.pth"
+  "results": {
+    "best_lifetime": 180.5,
+    "best_episode": 73,
+    "avg_lifetime_final_10": 172.4
+  },
+  "model_path": "results/models/trained_model_ddqn.pth"
 }
 ```
+
+`results.best_episode` is the 1-based episode number where the maximum reward occurred.
+`results.avg_lifetime_final_10` is the average reward over the last up to 10 episodes.
 
 **Status Code:** 200
 
@@ -147,6 +159,7 @@ curl -X POST http://localhost:5000/api/train \
   -d '{
     "episodes": 50,
     "nodes": 100,
+    "model_type": "dqn",
     "learning_rate": 0.0001
   }'
 ```
