@@ -104,6 +104,12 @@ def train_model():
         model_path = Path(config.paths.models) / f"trained_model_{model_type}.pth"
         trainer.save_checkpoint(str(model_path))
         
+        # Generate Plot
+        from src.utils.visualization import plot_training_curve
+        plot_filename = f"{model_type}_training_curve_{episodes}.png"
+        plot_path = Path(config.paths.visualizations) / plot_filename
+        plot_training_curve(rewards, output_path=str(plot_path))
+
         # Prepare results
         mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
         max_reward = float(max(rewards)) if rewards else 0.0
@@ -131,6 +137,7 @@ def train_model():
                 "avg_lifetime_final_10": avg_lifetime_final_10,
             },
             "model_path": str(model_path),
+            "image_url": f"/api/visualizations/{plot_filename}",
         }
         
         logger.info(f"Training completed: {results}")
@@ -153,4 +160,15 @@ def serve_results(filename):
         return send_from_directory(results_dir, filename)
     except Exception as e:
         logger.error(f"Failed to serve results: {str(e)}")
+        return jsonify({"error": "File not found"}), 404
+
+@api_bp.route("/visualizations/<path:filename>", methods=["GET"])
+def serve_visualizations(filename):
+    """Serve visualization plots."""
+    try:
+        config = current_app.config.get("CONFIG")
+        vis_dir = Path(config.paths.visualizations)
+        return send_from_directory(vis_dir, filename)
+    except Exception as e:
+        logger.error(f"Failed to serve visualization: {str(e)}")
         return jsonify({"error": "File not found"}), 404

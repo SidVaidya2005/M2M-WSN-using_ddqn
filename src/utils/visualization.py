@@ -60,7 +60,7 @@ def plot_training_curve(
 
     fig, axes = plt.subplots(1, 1, figsize=(10, 6))
 
-    axes.plot(episode_rewards, alpha=0.3, label="Episode Reward")
+    axes.plot(episode_rewards, color="#fe964a", alpha=0.9, label="Episode Reward", linewidth=1.5)
 
     if len(episode_rewards) >= window_size:
         moving_avg = np.convolve(
@@ -71,14 +71,17 @@ def plot_training_curve(
         axes.plot(
             range(window_size - 1, len(episode_rewards)),
             moving_avg,
+            color="#0077b6",
             label=f"{window_size}-Episode MA",
-            linewidth=2,
+            linewidth=2.5,
         )
 
     axes.set_xlabel("Episode")
     axes.set_ylabel("Reward")
     axes.set_title("Training Progress")
     axes.legend()
+    # Change background colour slightly
+    axes.set_facecolor('#fdfdfd')
     axes.grid(True, alpha=0.3)
 
     if output_path:

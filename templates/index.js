@@ -77,7 +77,7 @@ trainingForm.addEventListener("submit", async (e) => {
 
       if (data.image_url) {
         const timestamp = new Date().getTime();
-        resultImage.src = `${data.image_url}?t=${timestamp}`;
+        resultImage.src = `http://127.0.0.1:5001${data.image_url}?t=${timestamp}`;
         resultImage.onload = () => {
           imagePlaceholder.style.display = "none";
           resultImage.style.display = "block";
