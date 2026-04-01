@@ -6,7 +6,7 @@ the learned DDQN policy.
 """
 
 import numpy as np
-from src.agents.base_agent import BaseAgent
+from ..agents.base_agent import BaseAgent
 
 
 class RandomPolicy(BaseAgent):

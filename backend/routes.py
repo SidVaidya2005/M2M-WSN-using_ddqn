@@ -1,17 +1,17 @@
 """API routes for WSN DDQN training platform."""
 
 from flask import Blueprint, request, jsonify, current_app, send_from_directory
+from marshmallow import ValidationError
 from pathlib import Path
 
-from config.settings import get_config
-from src.agents.dqn_agent import DQNAgent
-from src.agents.ddqn_agent import DDQNAgent
-from src.envs.wsn_env import WSNEnv
-from src.training.trainer import Trainer
 from src.utils.logger import get_logger
+from .schemas import TrainingRequestSchema
+from .tasks import run_training, submit_training_task, get_task
 
 api_bp = Blueprint("api", __name__)
 logger = get_logger(__name__)
+
+_training_schema = TrainingRequestSchema()
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -31,144 +31,100 @@ def get_config_endpoint():
 
 @api_bp.route("/train", methods=["POST"])
 def train_model():
+    """Start a synchronous training run and return results.
+
+    Request body (all fields optional — defaults from config/config.yaml):
+        episodes      int   1-10000
+        nodes         int   10-10000
+        learning_rate float 1e-6 to 0.1
+        gamma         float 0.0 to 1.0
+        batch_size    int   8-512
+        death_threshold float 0.0-1.0
+        seed          int
+        model_type    str   "dqn" | "ddqn"
+
+    Returns:
+        200  Training result dict (status, mean_reward, image_url, …)
+        400  Validation errors
+        500  Training exception
     """
-    Start training endpoint.
-    
-    Request body:
-    {
-        "episodes": int (default: 100),
-        "nodes": int (default: 550),
-        "learning_rate": float (default: 1e-4),
-        "gamma": float (default: 0.99),
-        "batch_size": int (default: 64)
-    }
-    
-    Returns: Training results
-    """
+    data = request.get_json() or {}
+
     try:
-        config = current_app.config.get("CONFIG")
-        
-        # Get request parameters
-        data = request.get_json()
-        episodes = int(data.get("episodes", config.training.episodes))
-        nodes = int(data.get("nodes", config.environment.num_nodes))
-        lr = float(data.get("learning_rate", config.training.learning_rate))
-        gamma = float(data.get("gamma", config.training.gamma))
-        batch_size = int(data.get("batch_size", config.training.batch_size))
-        death_threshold = float(data.get("death_threshold", config.environment.death_threshold))
-        seed = int(data.get("seed", 42))
-        model_type = str(data.get("model_type", "ddqn")).lower()
+        params = _training_schema.load(data)
+    except ValidationError as exc:
+        return jsonify({"status": "error", "errors": exc.messages}), 400
 
-        valid_models = {"dqn", "ddqn"}
-        if model_type not in valid_models:
-            return jsonify({
-                "status": "error",
-                "message": f"Invalid model_type '{model_type}'. Choose one of: dqn, ddqn.",
-            }), 400
-        
-        logger.info(
-            f"Starting training: episodes={episodes}, nodes={nodes}, "
-            f"lr={lr}, batch_size={batch_size}, "
-            f"death_threshold={death_threshold}, seed={seed}, model_type={model_type}"
-        )
-        
-        # Create environment
-        env = WSNEnv(
-            N=nodes,
-            arena_size=tuple(config.environment.arena_size),
-            sink=tuple(config.environment.sink_position),
-            max_steps=config.environment.max_steps,
-            death_threshold=death_threshold,
-        )
-        
-        # Create agent
-        state_dim = env.observation_space.shape[0]
-        action_dim = 2
-        agent_class = DDQNAgent if model_type == "ddqn" else DQNAgent
-        agent = agent_class(
-            state_dim=state_dim,
-            action_dim=action_dim,
-            node_count=nodes,
-            lr=lr,
-            gamma=gamma,
-            batch_size=batch_size,
-        )
-        
-        # Create trainer
-        trainer = Trainer(agent, env, logger_obj=logger, seed=seed)
-        
-        # Train
-        rewards, _ = trainer.train(episodes=episodes)
-        
-        # Save model
-        model_path = Path(config.paths.models) / f"trained_model_{model_type}.pth"
-        trainer.save_checkpoint(str(model_path))
-        
-        # Generate Plot
-        from src.utils.visualization import plot_training_curve
-        plot_filename = f"{model_type}_training_curve_{episodes}.png"
-        plot_path = Path(config.paths.visualizations) / plot_filename
-        plot_training_curve(rewards, output_path=str(plot_path))
+    config = current_app.config.get("CONFIG")
 
-        # Prepare results
-        mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
-        max_reward = float(max(rewards)) if rewards else 0.0
-        if rewards:
-            best_episode = rewards.index(max(rewards)) + 1
-            trailing_count = min(10, len(rewards))
-            avg_lifetime_final_10 = float(
-                sum(rewards[-trailing_count:]) / trailing_count
-            )
-        else:
-            best_episode = 0
-            avg_lifetime_final_10 = 0.0
+    logger.info(
+        f"Starting training: episodes={params['episodes']}, nodes={params['nodes']}, "
+        f"lr={params['learning_rate']}, batch_size={params['batch_size']}, "
+        f"model_type={params['model_type']}, seed={params['seed']}"
+    )
 
-        results = {
-            "status": "success",
-            "message": f"Training completed successfully with {model_type.upper()}.",
-            "episodes": episodes,
-            "nodes": nodes,
-            "model_type": model_type,
-            "mean_reward": mean_reward,
-            "max_reward": max_reward,
-            "results": {
-                "best_lifetime": max_reward,
-                "best_episode": best_episode,
-                "avg_lifetime_final_10": avg_lifetime_final_10,
-            },
-            "model_path": str(model_path),
-            "image_url": f"/api/visualizations/{plot_filename}",
-        }
-        
-        logger.info(f"Training completed: {results}")
-        return jsonify(results), 200
-        
-    except Exception as e:
-        logger.error(f"Training failed: {str(e)}", exc_info=True)
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+    try:
+        result = run_training(params, config)
+        logger.info(f"Training completed: mean_reward={result['mean_reward']:.4f}")
+        return jsonify(result), 200
+    except Exception as exc:
+        logger.error(f"Training failed: {exc}", exc_info=True)
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+@api_bp.route("/train/async", methods=["POST"])
+def train_model_async():
+    """Submit a training job and return a task_id immediately.
+
+    The client can poll GET /api/tasks/<task_id> for status.
+
+    Returns:
+        202  {"status": "queued", "task_id": "<uuid>"}
+        400  Validation errors
+    """
+    data = request.get_json() or {}
+
+    try:
+        params = _training_schema.load(data)
+    except ValidationError as exc:
+        return jsonify({"status": "error", "errors": exc.messages}), 400
+
+    config = current_app.config.get("CONFIG")
+    task_id = submit_training_task(params, config)
+    return jsonify({"status": "queued", "task_id": task_id}), 202
+
+
+@api_bp.route("/tasks/<task_id>", methods=["GET"])
+def task_status(task_id: str):
+    """Poll the status of a background training task.
+
+    Returns:
+        200  {"status": "queued"|"running"|"completed"|"failed", "result": …, "error": …}
+        404  Task not found
+    """
+    task = get_task(task_id)
+    if task["status"] == "not_found":
+        return jsonify({"status": "not_found", "task_id": task_id}), 404
+    return jsonify(task), 200
 
 
 @api_bp.route("/results/<path:filename>", methods=["GET"])
 def serve_results(filename):
-    """Serve results files."""
+    """Serve metrics JSON files."""
     try:
         config = current_app.config.get("CONFIG")
-        results_dir = Path(config.paths.metrics)
-        return send_from_directory(results_dir, filename)
-    except Exception as e:
-        logger.error(f"Failed to serve results: {str(e)}")
+        return send_from_directory(Path(config.paths.metrics), filename)
+    except Exception as exc:
+        logger.error(f"Failed to serve results: {exc}")
         return jsonify({"error": "File not found"}), 404
+
 
 @api_bp.route("/visualizations/<path:filename>", methods=["GET"])
 def serve_visualizations(filename):
     """Serve visualization plots."""
     try:
         config = current_app.config.get("CONFIG")
-        vis_dir = Path(config.paths.visualizations)
-        return send_from_directory(vis_dir, filename)
-    except Exception as e:
-        logger.error(f"Failed to serve visualization: {str(e)}")
+        return send_from_directory(Path(config.paths.visualizations), filename)
+    except Exception as exc:
+        logger.error(f"Failed to serve visualization: {exc}")
         return jsonify({"error": "File not found"}), 404

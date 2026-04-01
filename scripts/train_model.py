@@ -1,23 +1,27 @@
 """
-Standalone training script for WSN DDQN model.
+Standalone training script for WSN DDQN/DQN model.
 
 This script can be run from command line to train models without using the web interface.
 
 Usage:
-    python scripts/train_model.py --episodes 100 --nodes 550 --lr 1e-4
+    python scripts/train_model.py --episodes 500 --nodes 550 --lr 1e-4 --model-type ddqn
 """
 
 import argparse
-import json
+import sys
 from pathlib import Path
-from typing import Dict
+
+# Ensure project root is on sys.path when run from any directory
+_project_root = Path(__file__).resolve().parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 from config.settings import get_config
 from src.agents.ddqn_agent import DDQNAgent
+from src.agents.dqn_agent import DQNAgent
 from src.envs.wsn_env import WSNEnv
 from src.training.trainer import Trainer
 from src.utils.logger import get_logger
-from src.utils.metrics import aggregate_metrics
 from src.utils.visualization import save_metrics_json, plot_training_curve
 
 logger = get_logger(__name__)
@@ -26,73 +30,76 @@ logger = get_logger(__name__)
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Train DDQN agent for WSN scheduling"
+        description="Train a DDQN or DQN agent for WSN scheduling"
     )
-    
+
     parser.add_argument(
         "--episodes",
         type=int,
         default=100,
-        help="Number of training episodes",
+        help="Number of training episodes (default: 100)",
     )
     parser.add_argument(
         "--nodes",
         type=int,
         default=550,
-        help="Number of network nodes",
+        help="Number of sensor nodes (default: 550)",
     )
     parser.add_argument(
         "--lr",
         type=float,
         default=1e-4,
-        help="Learning rate",
+        help="Learning rate (default: 1e-4)",
     )
     parser.add_argument(
         "--gamma",
         type=float,
         default=0.99,
-        help="Discount factor",
+        help="Discount factor (default: 0.99)",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=64,
-        help="Training batch size",
+        help="Training batch size (default: 64)",
     )
     parser.add_argument(
         "--seed",
         type=int,
         default=42,
-        help="Random seed",
+        help="Random seed (default: 42)",
     )
     parser.add_argument(
-        "--output-dir",
+        "--model-type",
         type=str,
-        default="results",
-        help="Output directory for models and metrics",
+        default="ddqn",
+        choices=["dqn", "ddqn"],
+        help="Agent type: dqn or ddqn (default: ddqn)",
     )
     parser.add_argument(
         "--eval-episodes",
         type=int,
         default=10,
-        help="Number of evaluation episodes after training",
+        help="Number of evaluation episodes after training (default: 10)",
     )
-    
+
     return parser.parse_args()
 
 
 def main():
     """Main training script."""
     args = parse_args()
-    
-    # Load config
+
     config = get_config()
     config.paths.create_all()
-    
-    logger.info(f"Training configuration: {args}")
-    
+
+    logger.info(
+        f"Training {args.model_type.upper()}: episodes={args.episodes}, "
+        f"nodes={args.nodes}, lr={args.lr}, gamma={args.gamma}, "
+        f"batch_size={args.batch_size}, seed={args.seed}"
+    )
+
     # Create environment
-    logger.info(f"Creating WSN environment with {args.nodes} nodes...")
     env = WSNEnv(
         N=args.nodes,
         arena_size=tuple(config.environment.arena_size),
@@ -101,75 +108,62 @@ def main():
         death_threshold=config.environment.death_threshold,
         seed=args.seed,
     )
-    
+
     # Create agent
-    logger.info("Initializing DDQN agent...")
     state_dim = env.observation_space.shape[0]
-    action_dim = 2
-    
-    agent = DDQNAgent(
+    agent_class = DDQNAgent if args.model_type == "ddqn" else DQNAgent
+    agent = agent_class(
         state_dim=state_dim,
-        action_dim=action_dim,
+        action_dim=2,
         node_count=args.nodes,
         lr=args.lr,
         gamma=args.gamma,
         batch_size=args.batch_size,
     )
-    
-    # Create trainer
+    logger.info(f"Initialized {agent_class.__name__} (state_dim={state_dim})")
+
+    # Train
     trainer = Trainer(agent, env, logger_obj=logger, seed=args.seed)
-    
-    # Training phase
-    logger.info(f"Starting training for {args.episodes} episodes...")
     train_rewards, train_metrics = trainer.train(episodes=args.episodes)
-    
-    logger.info("Training completed!")
-    logger.info(f"Mean reward: {sum(train_rewards) / len(train_rewards):.2f}")
-    logger.info(f"Max reward: {max(train_rewards):.2f}")
-    
-    # Save trained model
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    model_path = output_dir / "trained_model.pth"
+
+    mean_reward = sum(train_rewards) / len(train_rewards)
+    logger.info(f"Training complete — mean: {mean_reward:.2f}, max: {max(train_rewards):.2f}")
+
+    # Save model
+    model_path = Path(config.paths.models) / f"trained_model_{args.model_type}.pth"
     trainer.save_checkpoint(str(model_path))
-    logger.info(f"Model saved to {model_path}")
-    
-    # Evaluation phase
-    logger.info(f"Starting evaluation for {args.eval_episodes} episodes...")
+
+    # Evaluate
     eval_rewards, eval_metrics = trainer.evaluate(episodes=args.eval_episodes)
-    logger.info(f"Evaluation mean reward: {sum(eval_rewards) / len(eval_rewards):.2f}")
-    
+    eval_mean = sum(eval_rewards) / len(eval_rewards)
+    logger.info(f"Evaluation complete — mean: {eval_mean:.2f}")
+
     # Save metrics
     metrics_data = {
-        "training": {
-            "rewards": train_rewards,
-            "metrics": train_metrics,
-        },
-        "evaluation": {
-            "rewards": eval_rewards,
-            "metrics": eval_metrics,
-        },
+        "training": {"rewards": train_rewards, "metrics": train_metrics},
+        "evaluation": {"rewards": eval_rewards, "metrics": eval_metrics},
         "config": {
             "episodes": args.episodes,
             "nodes": args.nodes,
             "lr": args.lr,
             "gamma": args.gamma,
             "batch_size": args.batch_size,
+            "model_type": args.model_type,
+            "seed": args.seed,
         },
     }
-    
-    metrics_path = output_dir / "training_metrics.json"
+
+    metrics_path = Path(config.paths.metrics) / f"training_metrics_{args.model_type}.json"
     save_metrics_json(metrics_data, str(metrics_path))
-    logger.info(f"Metrics saved to {metrics_path}")
-    
+
     # Plot training curve
-    plot_path = output_dir / "training_curve.png"
+    plot_path = Path(config.paths.visualizations) / f"{args.model_type}_training_curve.png"
     plot_training_curve(train_rewards, output_path=str(plot_path))
-    logger.info(f"Training curve saved to {plot_path}")
-    
-    logger.info("Training script completed successfully!")
-    
+
+    logger.info(f"Metrics → {metrics_path}")
+    logger.info(f"Plot    → {plot_path}")
+    logger.info(f"Model   → {model_path}")
+
     return metrics_data
 
 
