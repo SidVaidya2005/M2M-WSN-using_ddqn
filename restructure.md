@@ -1,4 +1,4 @@
-# Project Restructuring Guide: WSN DDQN Training Platform
+# Project Restructuring Guide: WSN Training Platform
 
 ## New Directory Structure
 
