@@ -93,7 +93,7 @@ def run_training(params: dict, config) -> Dict[str, Any]:
 
     mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
     max_reward = float(max(rewards)) if rewards else 0.0
-    best_episode = (rewards.index(max(rewards)) + 1) if rewards else 0
+    best_episode = (rewards.index(max_reward) + 1) if rewards else 0
     trailing = min(10, len(rewards))
     avg_final_10 = float(sum(rewards[-trailing:]) / trailing) if rewards else 0.0
 

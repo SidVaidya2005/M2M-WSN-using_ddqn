@@ -1,7 +1,7 @@
 """Flask web server for WSN DDQN training platform."""
 
 import sys
-from flask import Flask, send_from_directory
+from flask import Flask, render_template
 from flask_cors import CORS
 from pathlib import Path
 
@@ -58,21 +58,8 @@ def create_app(config_path: str = "config/config.yaml") -> Flask:
     @app.route("/")
     def serve_index():
         """Serve the main HTML page."""
-        templates_dir = Path(__file__).resolve().parent.parent / "templates"
-        return send_from_directory(templates_dir, "index.html")
+        return render_template("index.html")
 
-    @app.route("/templates/<path:filename>")
-    def serve_template_assets(filename):
-        """Serve CSS and JS files from the templates directory."""
-        templates_dir = Path(__file__).resolve().parent.parent / "templates"
-        return send_from_directory(templates_dir, filename)
-
-    @app.route("/index.css")
-    def serve_index_css():
-        """Serve template stylesheet used by index page."""
-        templates_dir = Path(__file__).resolve().parent.parent / "templates"
-        return send_from_directory(templates_dir, "index.css")
-    
     return app
 
 

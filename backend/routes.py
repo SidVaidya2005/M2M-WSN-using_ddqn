@@ -111,20 +111,24 @@ def task_status(task_id: str):
 @api_bp.route("/results/<path:filename>", methods=["GET"])
 def serve_results(filename):
     """Serve metrics JSON files."""
+    config = current_app.config.get("CONFIG")
+    if not config:
+        return jsonify({"error": "Configuration not loaded"}), 500
     try:
-        config = current_app.config.get("CONFIG")
         return send_from_directory(Path(config.paths.metrics), filename)
     except Exception as exc:
-        logger.error(f"Failed to serve results: {exc}")
+        logger.error(f"Failed to serve results/{filename}: {exc}")
         return jsonify({"error": "File not found"}), 404
 
 
 @api_bp.route("/visualizations/<path:filename>", methods=["GET"])
 def serve_visualizations(filename):
     """Serve visualization plots."""
+    config = current_app.config.get("CONFIG")
+    if not config:
+        return jsonify({"error": "Configuration not loaded"}), 500
     try:
-        config = current_app.config.get("CONFIG")
         return send_from_directory(Path(config.paths.visualizations), filename)
     except Exception as exc:
-        logger.error(f"Failed to serve visualization: {exc}")
+        logger.error(f"Failed to serve visualizations/{filename}: {exc}")
         return jsonify({"error": "File not found"}), 404

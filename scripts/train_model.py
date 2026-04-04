@@ -99,7 +99,6 @@ def main():
         f"batch_size={args.batch_size}, seed={args.seed}"
     )
 
-    # Create environment
     env = WSNEnv(
         N=args.nodes,
         arena_size=tuple(config.environment.arena_size),
@@ -109,7 +108,6 @@ def main():
         seed=args.seed,
     )
 
-    # Create agent
     state_dim = env.observation_space.shape[0]
     agent_class = DDQNAgent if args.model_type == "ddqn" else DQNAgent
     agent = agent_class(
@@ -122,23 +120,19 @@ def main():
     )
     logger.info(f"Initialized {agent_class.__name__} (state_dim={state_dim})")
 
-    # Train
     trainer = Trainer(agent, env, logger_obj=logger, seed=args.seed)
     train_rewards, train_metrics = trainer.train(episodes=args.episodes)
 
     mean_reward = sum(train_rewards) / len(train_rewards)
     logger.info(f"Training complete — mean: {mean_reward:.2f}, max: {max(train_rewards):.2f}")
 
-    # Save model
     model_path = Path(config.paths.models) / f"trained_model_{args.model_type}.pth"
     trainer.save_checkpoint(str(model_path))
 
-    # Evaluate
     eval_rewards, eval_metrics = trainer.evaluate(episodes=args.eval_episodes)
     eval_mean = sum(eval_rewards) / len(eval_rewards)
     logger.info(f"Evaluation complete — mean: {eval_mean:.2f}")
 
-    # Save metrics
     metrics_data = {
         "training": {"rewards": train_rewards, "metrics": train_metrics},
         "evaluation": {"rewards": eval_rewards, "metrics": eval_metrics},
@@ -156,7 +150,6 @@ def main():
     metrics_path = Path(config.paths.metrics) / f"training_metrics_{args.model_type}.json"
     save_metrics_json(metrics_data, str(metrics_path))
 
-    # Plot training curve
     plot_path = Path(config.paths.visualizations) / f"{args.model_type}_training_curve.png"
     plot_training_curve(train_rewards, output_path=str(plot_path))
 
