@@ -31,6 +31,20 @@ python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.p
 python scripts/generate_report.py
 ```
 
+### Tests
+```bash
+# Run all tests
+pytest tests/
+
+# Run a single test file
+pytest tests/test_agent.py
+
+# Run a specific test
+pytest tests/test_agent.py::TestDDQNAgent::test_initialization -v
+```
+
+Tests use a small `N_NODES=10` fixture to stay fast. The `conftest.py` resets the config singleton (`settings_module._config = None`) before and after each session — replicate this pattern in any new test that imports `config.settings`.
+
 ### Code Quality
 ```bash
 black src/ backend/
@@ -59,7 +73,7 @@ Frontend (templates/) → HTTP/JSON → backend/ (Flask)
 
 **`src/agents/`** — `BaseAgent` is the abstract interface. `DDQNAgent` uses two PyTorch networks (policy + target), epsilon-greedy exploration, and a `ReplayBuffer`. `DQNAgent` uses a single network. Action space is per-node `{SLEEP=0, AWAKE=1}`.
 
-**`src/envs/wsn_env.py`** — Gymnasium-compatible environment. Observation: 5 features per node (SoC, SoH, last_action, distance_to_sink, activity_ratio). Reward balances coverage, energy efficiency, battery health, and fairness. `BatteryModel` tracks State of Charge (SoC) and State of Health (SoH) with cycle-based and calendar degradation.
+**`src/envs/wsn_env.py`** — Gymnasium-compatible environment. Observation: 5 features per node (SoC, SoH, last_action, distance_to_sink, activity_ratio). Reward balances coverage, energy efficiency, battery health, and fairness. `BatteryModel` (in `src/envs/battery_model.py`) tracks State of Charge (SoC) and State of Health (SoH) with cycle-based and calendar degradation.
 
 **`src/training/trainer.py`** — Orchestrates the training loop. Calls `agent.select_action()` → `env.step()` → `agent.store_transition()` → `agent.learn_step()`. Logs every 10 episodes; saves `.pth` checkpoints and metrics JSON.
 
@@ -77,7 +91,7 @@ Frontend (templates/) → HTTP/JSON → backend/ (Flask)
 
 - **`WSNEnv.reset()` returns a plain `np.ndarray`**, not a `(obs, info)` tuple. Never do `state, _ = env.reset()` — it will crash with `ValueError: too many values to unpack` because the array has 2750 elements (550 nodes × 5 features). Use `state = env.reset()`.
 - **Scripts require project root on `sys.path`**. All scripts in `scripts/` insert the project root via `Path(__file__).resolve().parent.parent`. If adding a new script, replicate this pattern or it will fail when run from a different directory.
-- **Model and metrics filenames include the model type** (`ddqn` or `dqn`). Don't hardcode `trained_model.pth`; use `config.paths.models / f"trained_model_{model_type}.pth"`.
+- **Model and metrics filenames include the model type** (`ddqn` or `dqn`). Don't hardcode `trained_model.pth`; use `Path(config.paths.models) / f"trained_model_{model_type}.pth"`. Note: `config.paths.*` fields are `str`, not `Path` — always wrap with `Path()` before using `/`.
 - **`POST /api/train` is synchronous** (blocks until training finishes) for frontend compatibility. Use `POST /api/train/async` for non-blocking invocation; poll `GET /api/tasks/<task_id>` for status.
 
 ## Extending the Platform
