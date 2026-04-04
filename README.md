@@ -39,12 +39,12 @@ python scripts/train_model.py --episodes 100 --nodes 550 --lr 1e-4
 python -m backend.app
 ```
 
-Then visit `http://localhost:5000` in your browser.
+Then visit `http://localhost:5001` in your browser.
 
 ### 5. Evaluate Against Baselines
 
 ```bash
-python scripts/evaluate_baselines.py --model results/trained_model.pth --episodes 10
+python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth --episodes 10
 ```
 
 ## Project Structure
