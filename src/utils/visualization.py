@@ -90,34 +90,3 @@ def plot_training_curve(
         plt.savefig(output_path, dpi=150, bbox_inches="tight")
 
     plt.close()
-
-
-def plot_comparison(
-    baselines: Dict[str, List[float]],
-    agent_name: str = "DDQN",
-    output_path: Optional[str] = None,
-) -> None:
-    """Plot comparison of different policies."""
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        print("Warning: matplotlib not installed, skipping plot generation")
-        return
-
-    fig, ax = plt.subplots(figsize=(12, 6))
-
-    for policy_name, rewards in baselines.items():
-        mean_reward = np.mean(rewards)
-        ax.axhline(y=mean_reward, label=policy_name, linewidth=2)
-
-    ax.set_ylabel("Mean Episode Reward")
-    ax.set_title(f"Policy Comparison: {agent_name} vs Baselines")
-    ax.legend()
-    ax.grid(True, alpha=0.3)
-
-    if output_path:
-        output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_path, dpi=150, bbox_inches="tight")
-
-    plt.close()

@@ -83,6 +83,7 @@ class Trainer:
             for callback in callbacks:
                 callback(episode, episode_reward, metrics)
         
+        self.env.close()
         return self.episode_rewards, self.episode_metrics
 
     def evaluate(
