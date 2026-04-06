@@ -111,3 +111,73 @@
 .history-kv:last-child { border-bottom: none; }
 .history-kv-label { color: #909097; }
 .history-kv-value { color: #dae2fd; font-weight: 500; }
+
+/* ── Evaluation section ────────────────────────────────── */
+.bench-section {
+    border-top: 1px solid rgba(69,70,77,0.4);
+    padding: 1rem 1.25rem;
+}
+.bench-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+}
+.bench-table th {
+    text-align: left;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #909097;
+    padding: 0.3rem 0.5rem 0.5rem;
+}
+.bench-table td {
+    padding: 0.35rem 0.5rem;
+    vertical-align: middle;
+    color: #c6c6cd;
+}
+.bench-table tr.bench-trained td {
+    color: #7bd0ff;
+    font-weight: 600;
+}
+.bench-table tr:not(:last-child) td {
+    border-bottom: 1px solid rgba(69,70,77,0.25);
+}
+.bench-bar-wrap {
+    background: rgba(45,52,73,0.5);
+    border-radius: 999px;
+    height: 6px;
+    width: 100%;
+    min-width: 60px;
+    overflow: hidden;
+}
+.bench-bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: #45464d;
+    transition: width 0.4s ease;
+}
+.bench-trained .bench-bar-fill {
+    background: #7bd0ff;
+}
+.bench-eval-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.35rem 0.75rem;
+    border-radius: 0.5rem;
+    background: rgba(123,208,255,0.08);
+    color: #7bd0ff;
+    border: 1px solid rgba(123,208,255,0.2);
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+}
+.bench-eval-btn:hover  { background: rgba(123,208,255,0.14); }
+.bench-eval-btn:active { transform: scale(0.97); }
+.bench-eval-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}

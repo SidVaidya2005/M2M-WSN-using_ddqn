@@ -39,3 +39,13 @@ class TrainingRequestSchema(Schema):
         load_default="ddqn",
         validate=validate.OneOf(["dqn", "ddqn"]),
     )
+
+
+class EvaluationRequestSchema(Schema):
+    """Schema for POST /api/evaluate request body."""
+
+    run_id = fields.Str(required=True)
+    episodes = fields.Int(
+        load_default=10,
+        validate=validate.Range(min=1, max=100),
+    )
