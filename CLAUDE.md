@@ -22,7 +22,7 @@ cp .env.example .env
 python -m backend.app
 
 # CLI training (--model-type dqn or ddqn)
-python scripts/train_model.py --episodes 500 --nodes 550 --lr 1e-4 --gamma 0.99 --batch-size 64 --seed 42 --model-type ddqn
+python scripts/train_model.py --episodes 500 --nodes 50 --lr 1e-4 --gamma 0.99 --batch-size 64 --seed 42 --model-type ddqn
 
 # Evaluate against baselines
 python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth --episodes 10

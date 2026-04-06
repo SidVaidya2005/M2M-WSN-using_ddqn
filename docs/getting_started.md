@@ -165,7 +165,7 @@ python scripts/train_model.py ...
 1. **Understand the Code**: Read [Architecture Overview](architecture.md)
 2. **Train a Real Model**: Using full settings:
    ```bash
-   python scripts/train_model.py --episodes 500 --nodes 550
+   python scripts/train_model.py --episodes 500 --nodes 50
    ```
 3. **Evaluate Baselines**: Compare against reference policies
    ```bash

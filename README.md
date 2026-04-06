@@ -30,7 +30,7 @@ cp .env.example .env
 ### 3. Train a Model via CLI
 
 ```bash
-python scripts/train_model.py --episodes 100 --nodes 550 --lr 1e-4
+python scripts/train_model.py --episodes 100 --nodes 50 --lr 1e-4
 ```
 
 ### 4. Run Web Server
@@ -96,9 +96,9 @@ training:
   gamma: 0.99
 
 environment:
-  num_nodes: 550
+  num_nodes: 50
   arena_size: [500, 500]
-  max_steps: 10000
+  max_steps: 1000
 ```
 
 ## Results
@@ -143,7 +143,7 @@ To reproduce published results:
 ```bash
 python scripts/train_model.py \
   --episodes 500 \
-  --nodes 550 \
+  --nodes 50 \
   --lr 1e-4 \
   --gamma 0.99 \
   --batch-size 64 \

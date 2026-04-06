@@ -64,9 +64,9 @@ Retrieve current configuration.
     "gamma": 0.99
   },
   "environment": {
-    "num_nodes": 550,
+    "num_nodes": 50,
     "arena_size": [500, 500],
-    "max_steps": 10000
+    "max_steps": 1000
   },
   "paths": {
     "models": "results/models",
@@ -94,7 +94,7 @@ Start training a new model.
 ```json
 {
   "episodes": 100,
-  "nodes": 550,
+  "nodes": 50,
   "model_type": "ddqn",
   "learning_rate": 0.0001,
   "gamma": 0.99,
@@ -106,7 +106,7 @@ Start training a new model.
 | Field         | Type  | Default | Range        |
 | ------------- | ----- | ------- | ------------ |
 | episodes      | int   | 100     | 1-10000      |
-| nodes         | int   | 550     | 10-10000     |
+| nodes         | int   | 50      | 10-10000     |
 | model_type    | str   | ddqn    | dqn or ddqn  |
 | learning_rate | float | 1e-4    | 1e-6 to 1e-1 |
 | gamma         | float | 0.99    | 0.0-1.0      |
@@ -120,7 +120,7 @@ Start training a new model.
   "status": "success",
   "message": "Training completed successfully with DDQN.",
   "episodes": 100,
-  "nodes": 550,
+  "nodes": 50,
   "model_type": "ddqn",
   "mean_reward": 145.32,
   "max_reward": 180.5,
@@ -235,7 +235,7 @@ print(f"Current episodes: {config['training']['episodes']}")
 # Start training
 training_config = {
     "episodes": 100,
-    "nodes": 550,
+    "nodes": 50,
     "learning_rate": 0.0001,
     "gamma": 0.99,
     "batch_size": 64,
@@ -310,7 +310,7 @@ async function downloadResults(filename) {
 // Usage
 const config = {
   episodes: 100,
-  nodes: 550,
+  nodes: 50,
   learning_rate: 0.0001,
   gamma: 0.99,
 };
@@ -336,7 +336,7 @@ class TrainingRequestSchema(Schema):
     nodes = fields.Int(
         required=False,
         validate=validate.Range(min=10, max=10000),
-        missing=550,
+        missing=50,
     )
     learning_rate = fields.Float(
         required=False,

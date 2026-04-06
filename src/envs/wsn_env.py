@@ -92,11 +92,11 @@ class WSNEnv(gym.Env):
         )
         self.action_space = spaces.MultiDiscrete([2] * N)  # 0 or 1 per node
 
-    def reset(self) -> np.ndarray:
+    def reset(self) -> Tuple[np.ndarray, Dict[str, Any]]:
         """Reset environment to initial state.
-        
+
         Returns:
-            Initial observation
+            Tuple of (observation, info) — Gymnasium-compliant.
         """
         self.step_count = 0
         self.positions = self.rng.rand(self.N, 2) * np.array(self.arena_size)
@@ -116,7 +116,7 @@ class WSNEnv(gym.Env):
         self.last_action = np.zeros(self.N, dtype=int)
         self.recent_activity = np.zeros(self.N, dtype=float)
 
-        return self._get_obs()
+        return self._get_obs(), {}
 
     def _get_obs(self) -> np.ndarray:
         """Construct observation vector from current state."""
@@ -146,7 +146,7 @@ class WSNEnv(gym.Env):
         self.step_count += 1
 
         # Simulate energy draw & battery update
-        total_energy_used = 0.0
+        per_node_energy = np.zeros(self.N, dtype=np.float32)
         coverage_active = 0
 
         for i, a in enumerate(action):
@@ -156,30 +156,40 @@ class WSNEnv(gym.Env):
                 self.batteries[i].discharge(energy_draw)
                 self.recent_activity[i] = 0.9 * self.recent_activity[i] + 0.1 * 1.0
                 coverage_active += 1
-                total_energy_used += energy_draw
+                per_node_energy[i] = energy_draw
             else:  # SLEEP
                 # Small leakage current
                 self.batteries[i].discharge(self.energy_sleep)
                 self.recent_activity[i] = 0.9 * self.recent_activity[i] + 0.1 * 0.0
-                total_energy_used += self.energy_sleep
+                per_node_energy[i] = self.energy_sleep
 
             self.last_action[i] = int(a)
 
-        # Compute reward components
+        total_energy_used = float(per_node_energy.sum())
+
+        # Post-discharge SoC fractions (normalized to [0, 1])
+        soc_fracs = np.array([b.soc / b.E_max for b in self.batteries], dtype=np.float32)
+
+        # Compute reward components — each normalized to a bounded range before summing
+
+        # Coverage: fraction of awake nodes, in [0, 1]
         coverage_ratio = coverage_active / self.N
-        r_coverage = coverage_ratio
+        r_coverage = np.clip(coverage_ratio, 0.0, 1.0)
 
-        # Energy penalty: penalize high usage
-        r_energy = -(total_energy_used / (self.N * self.timestep_energy_awake * 2.0))
+        # Energy penalty: base penalty scaled inversely by node SoC so depleted
+        # nodes are penalized more for drawing power; clipped to [-1, 0]
+        weighted_energy = float(np.sum(per_node_energy * (1.0 - soc_fracs)))
+        r_energy = -np.clip(
+            weighted_energy / (self.N * self.timestep_energy_awake * 2.0), 0.0, 1.0
+        )
 
-        # SoH reward: penalize health degradation
-        avg_soh = np.mean([b.soh for b in self.batteries])
-        r_soh = avg_soh - 0.99
+        # SoH reward: penalize health degradation, clipped to [-1, 1]
+        avg_soh = float(np.mean([b.soh for b in self.batteries]))
+        r_soh = np.clip(avg_soh - 0.99, -1.0, 1.0)
 
-        # Balance reward: penalize uneven charge distribution
-        socs = np.array([b.soc for b in self.batteries])
-        soc_std = np.std(socs) / (self.batteries[0].E_max + 1e-9)
-        r_balance = -soc_std
+        # Balance reward: penalize uneven charge distribution, clipped to [-1, 0]
+        soc_std = float(np.std(soc_fracs))
+        r_balance = np.clip(-soc_std, -1.0, 0.0)
 
         # Combined reward with balanced weights
         reward = 10.0 * r_coverage + 5.0 * r_energy + 1.0 * r_soh + 2.0 * r_balance

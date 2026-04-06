@@ -105,7 +105,7 @@ class DDQNAgent(BaseAgent):
         batch_size: int = 64,
         buffer_size: int = 200000,
         min_replay_size: int = 500,
-        update_target_every: int = 1000,
+        update_target_every: int = 500,
         hidden_dims: list = None,
         device: str = None,
     ):
@@ -159,31 +159,46 @@ class DDQNAgent(BaseAgent):
         # Epsilon-greedy exploration schedule
         self.eps_start = 1.0
         self.eps_end = 0.05
-        self.eps_decay = 1e5
+        self.eps_decay = 5e4
+        # Overridden to 0.0 when set_eval_mode() is called
+        self._eval_epsilon: Optional[float] = None
+
+    def eval(self) -> None:
+        """Switch to evaluation mode — forces epsilon to 0.0 (fully greedy)."""
+        super().eval()
+        self._eval_epsilon = 0.0
+
+    def train(self) -> None:
+        """Restore training mode — epsilon reverts to the decay schedule."""
+        super().train()
+        self._eval_epsilon = None
 
     def select_action(
         self, state: np.ndarray, eval_mode: bool = False
     ) -> np.ndarray:
         """Select actions using epsilon-greedy policy.
-        
+
         Args:
             state: Current observation
-            eval_mode: If True, use greedy policy (no exploration)
-            
+            eval_mode: If True, use greedy policy (no exploration).
+                       set_eval_mode() also forces greedy regardless of this flag.
+
         Returns:
             Action array of shape (node_count,)
         """
-        # Compute epsilon decay
-        eps = (
-            self.eps_end
-            if eval_mode
-            else self.eps_end
-            + (self.eps_start - self.eps_end)
-            * max(0, 1 - self.learn_steps / self.eps_decay)
-        )
+        is_greedy = eval_mode or not self._is_training
+
+        if self._eval_epsilon is not None:
+            eps = self._eval_epsilon
+        elif is_greedy:
+            eps = self.eps_end
+        else:
+            eps = self.eps_end + (self.eps_start - self.eps_end) * max(
+                0, 1 - self.learn_steps / self.eps_decay
+            )
 
         # Explore
-        if random.random() < eps and not eval_mode:
+        if random.random() < eps and not is_greedy:
             return np.random.randint(0, self.action_dim, size=self.node_count)
 
         # Exploit

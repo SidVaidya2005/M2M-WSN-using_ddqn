@@ -42,8 +42,8 @@ def parse_args():
     parser.add_argument(
         "--nodes",
         type=int,
-        default=550,
-        help="Number of sensor nodes (default: 550)",
+        default=50,
+        help="Number of sensor nodes (default: 50)",
     )
     parser.add_argument(
         "--lr",
@@ -108,6 +108,8 @@ def main():
         seed=args.seed,
     )
 
+    if env.observation_space.shape is None:
+        raise ValueError("env.observation_space.shape is None — cannot determine state dimension")
     state_dim = env.observation_space.shape[0]
     agent_class = DDQNAgent if args.model_type == "ddqn" else DQNAgent
     agent = agent_class(

@@ -21,12 +21,12 @@ python scripts/train_model.py [OPTIONS]
 python scripts/train_model.py --episodes 10 --nodes 50
 
 # Full training
-python scripts/train_model.py --episodes 500 --nodes 550 --seed 42
+python scripts/train_model.py --episodes 500 --nodes 50 --seed 42
 
 # Custom hyperparameters
 python scripts/train_model.py \
   --episodes 200 \
-  --nodes 550 \
+  --nodes 50 \
   --lr 5e-5 \
   --gamma 0.995 \
   --batch-size 32 \
@@ -77,8 +77,8 @@ config = get_config()
 
 # Create environment
 env = WSNEnv(
-    N=550,
-    max_steps=10000,
+    N=50,
+    max_steps=1000,
     seed=42,
 )
 
@@ -86,7 +86,7 @@ env = WSNEnv(
 agent = DDQNAgent(
     state_dim=env.observation_space.shape[0],
     action_dim=2,
-    node_count=550,
+    node_count=50,
     lr=1e-4,
     gamma=0.99,
     batch_size=64,
@@ -133,7 +133,7 @@ python scripts/train_model.py \
 ### Step 2: Start Training
 
 ```bash
-python scripts/train_model.py --episodes 100 --nodes 550 --seed 42
+python scripts/train_model.py --episodes 100 --nodes 50 --seed 42
 ```
 
 **Monitor Progress:**
@@ -371,7 +371,8 @@ nn.utils.clip_grad_norm_(self.q_net.parameters(), 5.0)  # Lower from 10.0
 | ----- | -------- | ------ | ----------- |
 | 50    | 100      | 2 min  | ~120        |
 | 100   | 100      | 5 min  | ~100        |
-| 550   | 100      | 45 min | ~150        |
+| 550   | 100      | 45 min | ~150        |  ← full-scale
+
 
 ### On GPU (NVIDIA GTX 1080):
 
@@ -387,7 +388,7 @@ To ensure reproducible results:
 ```bash
 python scripts/train_model.py \
   --episodes 100 \
-  --nodes 550 \
+  --nodes 50 \
   --lr 1e-4 \
   --gamma 0.99 \
   --batch-size 64 \

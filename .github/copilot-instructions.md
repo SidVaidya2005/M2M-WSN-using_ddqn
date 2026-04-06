@@ -13,7 +13,7 @@
 ## Build and Run
 
 - **Setup**: `pip install -r requirements.txt` (and copy `.env.example` to `.env` if available)
-- **Train CLI**: `python scripts/train_model.py --episodes 100 --nodes 550 --lr 1e-4`
+- **Train CLI**: `python scripts/train_model.py --episodes 100 --nodes 50 --lr 1e-4`
 - **Evaluate**: `python scripts/evaluate_baselines.py --model results/models/trained_model.pth --episodes 10`
 - **Web UI**: `python -m backend.app` (runs Flask on `http://localhost:5000`)
 

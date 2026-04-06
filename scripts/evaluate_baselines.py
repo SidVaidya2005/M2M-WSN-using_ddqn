@@ -55,8 +55,7 @@ def evaluate_policy(
     metrics = []
 
     for _ in range(episodes):
-        # WSNEnv.reset() returns a plain numpy array (not a tuple)
-        state = env.reset()
+        state, _ = env.reset()
         episode_reward = 0.0
         episode_info = {}
         done = False
@@ -95,8 +94,8 @@ def parse_args():
     parser.add_argument(
         "--nodes",
         type=int,
-        default=550,
-        help="Number of sensor nodes (default: 550)",
+        default=50,
+        help="Number of sensor nodes (default: 50)",
     )
 
     return parser.parse_args()
@@ -119,6 +118,8 @@ def main():
         max_steps=config.environment.max_steps,
     )
 
+    if env.observation_space.shape is None:
+        raise ValueError("env.observation_space.shape is None — cannot determine state dimension")
     state_dim = env.observation_space.shape[0]
     action_dim = 2
 
@@ -154,6 +155,7 @@ def main():
         logger.info(f"Evaluating DDQN from {model_path}...")
         agent = DDQNAgent(state_dim=state_dim, action_dim=action_dim, node_count=args.nodes)
         agent.load_model(str(model_path))
+        agent.eval()  # Disable exploration during benchmarking
         trainer = Trainer(agent, env, logger_obj=logger)
         rewards, metrics = trainer.evaluate(episodes=args.episodes)
         mean = sum(rewards) / len(rewards)

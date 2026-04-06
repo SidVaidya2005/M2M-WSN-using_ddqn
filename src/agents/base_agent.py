@@ -14,7 +14,7 @@ class BaseAgent(ABC):
 
     def __init__(self, state_dim: int, action_dim: int, node_count: int):
         """Initialize agent.
-        
+
         Args:
             state_dim: Dimension of state/observation space
             action_dim: Number of discrete actions per node
@@ -23,6 +23,7 @@ class BaseAgent(ABC):
         self.state_dim = state_dim
         self.action_dim = action_dim
         self.node_count = node_count
+        self._is_training: bool = True
 
     @abstractmethod
     def select_action(self, state: np.ndarray, eval_mode: bool = False) -> np.ndarray:
@@ -83,6 +84,14 @@ class BaseAgent(ABC):
             path: File path to load model from
         """
         pass
+
+    def eval(self) -> None:
+        """Switch agent to evaluation mode — disables stochastic exploration."""
+        self._is_training = False
+
+    def train(self) -> None:
+        """Switch agent back to training mode — re-enables exploration."""
+        self._is_training = True
 
     def reset(self) -> None:
         """Reset any episodic state (e.g., for certain exploration strategies)."""

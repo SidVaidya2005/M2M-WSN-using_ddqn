@@ -134,11 +134,7 @@ class Trainer:
         Returns:
             Tuple of (total_episode_reward, final_info_dict)
         """
-        state = self.env.reset()
-        if isinstance(state, tuple):
-            state, info = state
-        else:
-            info = {}
+        state, info = self.env.reset()
             
         episode_reward = 0.0
         episode_info = None
