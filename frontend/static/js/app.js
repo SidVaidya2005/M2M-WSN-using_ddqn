@@ -111,8 +111,9 @@ function switchTab(tab) {
 // ── History: shared helpers ──────────────────────────────────────────────────
 
 function fmt(val, decimals = 2) {
+  if (val === null || val === undefined) return "N/A";
   const n = Number(val);
-  return Number.isFinite(n) ? n.toFixed(decimals) : "-";
+  return Number.isFinite(n) ? n.toFixed(decimals) : "N/A";
 }
 
 function formatTimestamp(isoString) {
@@ -349,24 +350,27 @@ function buildHistoryCard(run) {
   const body = document.createElement("div");
   body.className = "p-5 grid grid-cols-1 md:grid-cols-3 gap-5";
 
+  // Display helper: null/undefined → "N/A", 0 → "0", otherwise value as string
+  const cfgVal = (v) => (v === null || v === undefined) ? "N/A" : String(v);
   const deathPct = cfg.death_threshold != null
-    ? `${(cfg.death_threshold * 100).toFixed(0)}%` : "-";
+    ? `${(cfg.death_threshold * 100).toFixed(0)}%` : "N/A";
 
   body.appendChild(buildSection("Configuration", [
-    ["Episodes",      cfg.episodes      ?? "-"],
-    ["Nodes",         cfg.nodes         ?? "-"],
-    ["Learning Rate", cfg.learning_rate ?? "-"],
-    ["Gamma",         cfg.gamma         ?? "-"],
-    ["Batch Size",    cfg.batch_size    ?? "-"],
-    ["Max Steps",     cfg.max_steps     ?? "-"],
+    ["Episodes",      cfgVal(cfg.episodes)],
+    ["Nodes",         cfgVal(cfg.nodes)],
+    ["Learning Rate", cfgVal(cfg.learning_rate)],
+    ["Gamma",         cfgVal(cfg.gamma)],
+    ["Batch Size",    cfgVal(cfg.batch_size)],
+    ["Max Steps",     cfgVal(cfg.max_steps)],
     ["Death Thresh.", deathPct],
-    ["Seed",          cfg.seed          ?? "-"],
+    ["Seed",          cfgVal(cfg.seed)],
   ]));
 
+  const metVal = (v) => (v === null || v === undefined) ? "N/A" : String(v);
   body.appendChild(buildSection("Metrics", [
     ["Max Reward",   fmt(met.max_reward)],
     ["Mean Reward",  fmt(met.mean_reward)],
-    ["Best Episode", met.best_episode ?? "-"],
+    ["Best Episode", metVal(met.best_episode)],
     ["Avg Last 10",  fmt(met.avg_final_10)],
   ]));
 

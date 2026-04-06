@@ -6,6 +6,43 @@ from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from marshmallow import ValidationError
 from pathlib import Path
 
+
+def _project_root() -> Path:
+    """Return the project root directory (one level above backend/)."""
+    return Path(current_app.root_path).parent
+
+
+def _abs(relative_path: str) -> Path:
+    """Resolve a config-relative path to an absolute path from the project root."""
+    p = Path(relative_path)
+    return p if p.is_absolute() else _project_root() / p
+
+
+def _apply_config_defaults(run: dict, config) -> None:
+    """Fill null config fields in a run dict with current config defaults.
+
+    Runs migrated from legacy artifacts may have null for all hyperparameters.
+    Rather than showing 'N/A', we substitute the project defaults so the
+    History cards look complete.  Metrics remain null when genuinely unknown.
+    """
+    cfg = run.get("config")
+    if not isinstance(cfg, dict):
+        return
+    env = config.environment
+    tr  = config.training
+    defaults = {
+        "nodes":           env.num_nodes,
+        "learning_rate":   tr.learning_rate,
+        "gamma":           tr.gamma,
+        "batch_size":      tr.batch_size,
+        "death_threshold": env.death_threshold,
+        "max_steps":       env.max_steps,
+        "seed":            env.seed,
+    }
+    for key, val in defaults.items():
+        if cfg.get(key) is None:
+            cfg[key] = val
+
 from src.utils.logger import get_logger
 from .schemas import TrainingRequestSchema, EvaluationRequestSchema
 from .tasks import run_training, submit_training_task, get_task, submit_benchmark_task
@@ -126,12 +163,14 @@ def get_history():
     if not config:
         return jsonify({"error": "Configuration not loaded"}), 500
 
-    metrics_dir = Path(config.paths.metrics)
+    metrics_dir = _abs(config.paths.metrics)
     runs = []
     for meta_file in sorted(metrics_dir.glob("*_metadata.json"), reverse=True):
         try:
             with open(meta_file) as f:
                 run = json.load(f)
+            # Fill null config fields with project defaults
+            _apply_config_defaults(run, config)
             # Inline benchmark results if they exist
             bench_file = metrics_dir / f"{run['run_id']}_evaluation.json"
             if bench_file.exists():
@@ -167,7 +206,7 @@ def start_benchmark():
         return jsonify({"status": "error", "errors": exc.messages}), 400
 
     config = current_app.config.get("CONFIG")
-    metadata_path = Path(config.paths.metrics) / f"{params['run_id']}_metadata.json"
+    metadata_path = _abs(config.paths.metrics) / f"{params['run_id']}_metadata.json"
     if not metadata_path.exists():
         return jsonify({"status": "error", "message": f"Run '{params['run_id']}' not found"}), 404
 
@@ -182,7 +221,7 @@ def serve_results(filename):
     if not config:
         return jsonify({"error": "Configuration not loaded"}), 500
     try:
-        return send_from_directory(Path(config.paths.metrics), filename)
+        return send_from_directory(_abs(config.paths.metrics), filename)
     except Exception as exc:
         logger.error(f"Failed to serve results/{filename}: {exc}")
         return jsonify({"error": "File not found"}), 404
@@ -195,7 +234,7 @@ def serve_visualizations(filename):
     if not config:
         return jsonify({"error": "Configuration not loaded"}), 500
     try:
-        return send_from_directory(Path(config.paths.visualizations), filename)
+        return send_from_directory(_abs(config.paths.visualizations), filename)
     except Exception as exc:
         logger.error(f"Failed to serve visualizations/{filename}: {exc}")
         return jsonify({"error": "File not found"}), 404
