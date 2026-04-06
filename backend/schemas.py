@@ -30,6 +30,10 @@ class TrainingRequestSchema(Schema):
         load_default=0.3,
         validate=validate.Range(min=0.0, max=1.0),
     )
+    max_steps = fields.Int(
+        load_default=1000,
+        validate=validate.Range(min=50, max=10000),
+    )
     seed = fields.Int(load_default=42)
     model_type = fields.Str(
         load_default="ddqn",

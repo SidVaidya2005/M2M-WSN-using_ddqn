@@ -54,3 +54,60 @@
     from { opacity: 0; transform: translateY(6px); }
     to   { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Tab switcher ──────────────────────────────────────── */
+.tab-btn {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #909097;
+    transition: background 0.15s, color 0.15s;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+}
+.tab-btn:hover { color: #dae2fd; }
+.tab-btn.active-tab {
+    background: #222a3d;
+    color: #7bd0ff;
+}
+
+/* ── History panel ─────────────────────────────────────── */
+#panelHistory {
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+.history-card {
+    animation: fadeIn 0.3s ease-out;
+}
+.history-card-plot {
+    width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    object-fit: cover;
+    background: #060e20;
+}
+.history-badge {
+    display: inline-block;
+    padding: 0.2rem 0.65rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: #001a27;
+    color: #7bd0ff;
+    border: 1px solid rgba(123,208,255,0.2);
+}
+.history-kv {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid rgba(69,70,77,0.3);
+}
+.history-kv:last-child { border-bottom: none; }
+.history-kv-label { color: #909097; }
+.history-kv-value { color: #dae2fd; font-weight: 500; }

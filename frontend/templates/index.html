@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WSN DDQN | Training Dashboard</title>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <script>
@@ -176,6 +177,13 @@
                         </div>
 
                         <div class="space-y-1.5">
+                            <label class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest" for="max_steps">Max Steps per Episode</label>
+                            <input type="number" id="max_steps"
+                                   class="w-full bg-surface-container-lowest border-0 text-on-surface rounded-lg py-2.5 px-3.5 text-sm focus:ring-1 focus:ring-primary/40"
+                                   value="1000" min="50" max="10000">
+                        </div>
+
+                        <div class="space-y-1.5">
                             <label class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest" for="seed">Random Seed</label>
                             <input type="number" id="seed"
                                    class="w-full bg-surface-container-lowest border-0 text-on-surface rounded-lg py-2.5 px-3.5 text-sm focus:ring-1 focus:ring-primary/40"
@@ -201,75 +209,112 @@
             <!-- ── Right: Results ─────────────────────────────────────── -->
             <section class="lg:col-span-9 flex flex-col gap-5 min-h-0" aria-label="Training Results">
 
-                <!-- KPI Cards -->
-                <div id="metricsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4" style="display:none;">
-                    <div class="bg-surface-container p-5 rounded-xl border-l-2 border-primary">
-                        <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Best Lifetime</p>
-                        <div class="flex items-baseline gap-2 mt-1.5">
-                            <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valBestLifetime">—</h3>
-                        </div>
-                    </div>
-                    <div class="bg-surface-container p-5 rounded-xl">
-                        <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Best Episode</p>
-                        <div class="flex items-baseline gap-2 mt-1.5">
-                            <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valBestEpisode">—</h3>
-                        </div>
-                    </div>
-                    <div class="bg-surface-container p-5 rounded-xl">
-                        <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Avg Lifetime (Last 10)</p>
-                        <div class="flex items-baseline gap-2 mt-1.5">
-                            <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valAvgLifetime">—</h3>
-                        </div>
-                    </div>
+                <!-- Tab Switcher -->
+                <div class="flex gap-1 bg-surface-container-low rounded-xl p-1 border border-outline-variant/10">
+                    <button id="tabCurrent" class="tab-btn active-tab" onclick="switchTab('current')">
+                        <span class="flex items-center justify-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px]">show_chart</span>
+                            Current Run
+                        </span>
+                    </button>
+                    <button id="tabHistory" class="tab-btn" onclick="switchTab('history')">
+                        <span class="flex items-center justify-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px]">history</span>
+                            Training History
+                        </span>
+                    </button>
                 </div>
 
-                <!-- Plot Area -->
-                <div class="bg-surface-container-low flex-1 rounded-xl border border-outline-variant/10 flex flex-col overflow-hidden">
-                    <div class="px-5 py-4 flex justify-between items-center border-b border-outline-variant/10">
-                        <h2 class="font-headline font-bold text-base tracking-tight flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary text-[20px]">show_chart</span>
-                            Training Results
-                        </h2>
-                        <div class="flex gap-1.5">
-                            <button class="p-1.5 rounded-lg text-on-surface-variant hover:bg-surface-container-highest hover:text-on-surface transition-colors">
-                                <span class="material-symbols-outlined text-[18px]">download</span>
-                            </button>
+                <!-- ── Panel: Current Run ──────────────────────────────── -->
+                <div id="panelCurrent" class="flex flex-col gap-5">
+
+                    <!-- KPI Cards -->
+                    <div id="metricsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4" style="display:none;">
+                        <div class="bg-surface-container p-5 rounded-xl border-l-2 border-primary">
+                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Best Lifetime</p>
+                            <div class="flex items-baseline gap-2 mt-1.5">
+                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valBestLifetime">—</h3>
+                            </div>
+                        </div>
+                        <div class="bg-surface-container p-5 rounded-xl">
+                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Best Episode</p>
+                            <div class="flex items-baseline gap-2 mt-1.5">
+                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valBestEpisode">—</h3>
+                            </div>
+                        </div>
+                        <div class="bg-surface-container p-5 rounded-xl">
+                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Avg Lifetime (Last 10)</p>
+                            <div class="flex items-baseline gap-2 mt-1.5">
+                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valAvgLifetime">—</h3>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="flex-1 m-5 bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/5 relative min-h-[320px]">
-                        <div id="imagePlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-on-surface-variant">
-                            <span class="material-symbols-outlined text-5xl opacity-20">image</span>
-                            <p class="text-sm opacity-50">Run training to view the generated plots here.</p>
+                    <!-- Plot Area -->
+                    <div class="bg-surface-container-low flex-1 rounded-xl border border-outline-variant/10 flex flex-col overflow-hidden">
+                        <div class="px-5 py-4 flex justify-between items-center border-b border-outline-variant/10">
+                            <h2 class="font-headline font-bold text-base tracking-tight flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-[20px]">show_chart</span>
+                                Training Results
+                            </h2>
                         </div>
-                        <img id="resultImage" style="display:none;" alt="DDQN Training Results"
-                             class="w-full h-auto rounded-xl result-fade">
+
+                        <div class="flex-1 m-5 bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/5 relative min-h-[320px]">
+                            <div id="imagePlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-on-surface-variant">
+                                <span class="material-symbols-outlined text-5xl opacity-20">image</span>
+                                <p class="text-sm opacity-50">Run training to view the generated plots here.</p>
+                            </div>
+                            <img id="resultImage" style="display:none;" alt="DDQN Training Results"
+                                 class="w-full h-auto rounded-xl result-fade">
+                        </div>
+
+                        <div class="px-6 pb-4 flex gap-6 items-center">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(123,208,255,0.5)]"></span>
+                                <span class="text-xs text-on-surface-variant font-medium">Training Reward</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
+                                <span class="text-xs text-on-surface-variant font-medium">Baseline</span>
+                            </div>
+                        </div>
                     </div>
 
-                    <div class="px-6 pb-4 flex gap-6 items-center">
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(123,208,255,0.5)]"></span>
-                            <span class="text-xs text-on-surface-variant font-medium">Training Reward</span>
+                    <!-- Simulation GIF -->
+                    <div id="gifContainer" class="bg-surface-container-low rounded-xl border border-outline-variant/10 overflow-hidden" style="display:none;">
+                        <div class="px-5 py-4 border-b border-outline-variant/10">
+                            <h2 class="font-headline font-bold text-base tracking-tight flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-[20px]">play_circle</span>
+                                Best Episode Simulation
+                            </h2>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
-                            <span class="text-xs text-on-surface-variant font-medium">Baseline</span>
+                        <div class="p-5">
+                            <img id="resultGif" src="" alt="Best Episode Simulation"
+                                 class="w-full h-auto rounded-xl">
                         </div>
                     </div>
+
                 </div>
 
-                <!-- Simulation GIF -->
-                <div id="gifContainer" class="bg-surface-container-low rounded-xl border border-outline-variant/10 overflow-hidden" style="display:none;">
-                    <div class="px-5 py-4 border-b border-outline-variant/10">
-                        <h2 class="font-headline font-bold text-base tracking-tight flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary text-[20px]">play_circle</span>
-                            Best Episode Simulation
-                        </h2>
+                <!-- ── Panel: Training History ─────────────────────────── -->
+                <div id="panelHistory" class="hidden flex-col gap-4 custom-scrollbar">
+
+                    <div class="flex items-center justify-between">
+                        <p class="text-xs text-on-surface-variant">All past runs, newest first. Plots load from the visualizations folder.</p>
+                        <button onclick="fetchHistory()" class="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-primary transition-colors py-1 px-2 rounded-lg hover:bg-surface-container">
+                            <span class="material-symbols-outlined text-[16px]">refresh</span>
+                            Refresh
+                        </button>
                     </div>
-                    <div class="p-5">
-                        <img id="resultGif" src="" alt="Best Episode Simulation"
-                             class="w-full h-auto rounded-xl">
+
+                    <!-- Populated by JS -->
+                    <div id="historyList" class="flex flex-col gap-4">
+                        <div class="flex flex-col items-center justify-center gap-3 py-16 text-on-surface-variant opacity-50">
+                            <span class="material-symbols-outlined text-5xl">history</span>
+                            <p class="text-sm">No training runs yet.</p>
+                        </div>
                     </div>
+
                 </div>
 
             </section>

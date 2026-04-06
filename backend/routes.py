@@ -1,5 +1,7 @@
 """API routes for WSN DDQN training platform."""
 
+import json
+
 from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from marshmallow import ValidationError
 from pathlib import Path
@@ -106,6 +108,32 @@ def task_status(task_id: str):
     if task["status"] == "not_found":
         return jsonify({"status": "not_found", "task_id": task_id}), 404
     return jsonify(task), 200
+
+
+@api_bp.route("/history", methods=["GET"])
+def get_history():
+    """Return all training run metadata, newest first.
+
+    Scans results/metrics/ for *_metadata.json files and returns them as a
+    sorted JSON list so the frontend can render the Training History panel.
+
+    Returns:
+        200  List of run metadata dicts
+        500  Configuration not loaded
+    """
+    config = current_app.config.get("CONFIG")
+    if not config:
+        return jsonify({"error": "Configuration not loaded"}), 500
+
+    metrics_dir = Path(config.paths.metrics)
+    runs = []
+    for meta_file in sorted(metrics_dir.glob("*_metadata.json"), reverse=True):
+        try:
+            with open(meta_file) as f:
+                runs.append(json.load(f))
+        except Exception as exc:
+            logger.warning(f"Skipping corrupt metadata file {meta_file}: {exc}")
+    return jsonify(runs), 200
 
 
 @api_bp.route("/results/<path:filename>", methods=["GET"])

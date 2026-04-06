@@ -8,6 +8,8 @@ To switch to full async: call submit_training_task() and return the task_id imme
 then let the client poll /api/tasks/<task_id> for status.
 """
 
+import datetime
+import json
 import threading
 import uuid
 from pathlib import Path
@@ -53,12 +55,14 @@ def run_training(params: dict, config) -> Dict[str, Any]:
     Returns:
         Result dictionary ready to be returned as JSON
     """
+    run_id = datetime.datetime.now().strftime("run_%Y%m%d_%H%M%S")
     episodes = params["episodes"]
     nodes = params["nodes"]
     lr = params["learning_rate"]
     gamma = params["gamma"]
     batch_size = params["batch_size"]
     death_threshold = params["death_threshold"]
+    max_steps = params.get("max_steps", config.environment.max_steps)
     seed = params["seed"]
     model_type = params["model_type"]
 
@@ -66,7 +70,7 @@ def run_training(params: dict, config) -> Dict[str, Any]:
         N=nodes,
         arena_size=tuple(config.environment.arena_size),
         sink=tuple(config.environment.sink_position),
-        max_steps=config.environment.max_steps,
+        max_steps=max_steps,
         death_threshold=death_threshold,
     )
 
@@ -84,22 +88,51 @@ def run_training(params: dict, config) -> Dict[str, Any]:
     trainer = Trainer(agent, env, seed=seed)
     rewards, _ = trainer.train(episodes=episodes)
 
-    model_path = Path(config.paths.models) / f"trained_model_{model_type}.pth"
+    model_path = Path(config.paths.models) / f"{run_id}_model.pth"
     trainer.save_checkpoint(str(model_path))
 
-    plot_filename = f"{model_type}_training_curve_{episodes}.png"
+    plot_filename = f"{run_id}_plot.png"
     plot_path = Path(config.paths.visualizations) / plot_filename
     plot_training_curve(rewards, output_path=str(plot_path))
 
     mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
     max_reward = float(max(rewards)) if rewards else 0.0
-    best_episode = (rewards.index(max_reward) + 1) if rewards else 0
+    best_episode = (int(rewards.index(max(rewards))) + 1) if rewards else 0
     trailing = min(10, len(rewards))
     avg_final_10 = float(sum(rewards[-trailing:]) / trailing) if rewards else 0.0
+    image_url = f"/api/visualizations/{plot_filename}"
+
+    metadata = {
+        "run_id": run_id,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "config": {
+            "model_type": model_type,
+            "episodes": episodes,
+            "nodes": nodes,
+            "learning_rate": lr,
+            "gamma": gamma,
+            "batch_size": batch_size,
+            "death_threshold": death_threshold,
+            "max_steps": max_steps,
+            "seed": seed,
+        },
+        "metrics": {
+            "mean_reward": mean_reward,
+            "max_reward": max_reward,
+            "best_episode": best_episode,
+            "avg_final_10": avg_final_10,
+        },
+        "image_url": image_url,
+        "model_path": str(model_path),
+    }
+    metadata_path = Path(config.paths.metrics) / f"{run_id}_metadata.json"
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=2)
 
     return {
         "status": "success",
         "message": f"Training completed with {model_type.upper()}.",
+        "run_id": run_id,
         "episodes": episodes,
         "nodes": nodes,
         "model_type": model_type,
@@ -111,7 +144,7 @@ def run_training(params: dict, config) -> Dict[str, Any]:
             "avg_lifetime_final_10": avg_final_10,
         },
         "model_path": str(model_path),
-        "image_url": f"/api/visualizations/{plot_filename}",
+        "image_url": image_url,
     }
 
 
