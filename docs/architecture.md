@@ -57,7 +57,8 @@ print(config.training.episodes)  # Access settings via attributes
 **Files:**
 
 - `base_agent.py` - Abstract base class defining agent interface
-- `ddqn_agent.py` - Double Deep Q-Network implementation
+- `ddqn_agent.py` - Double Deep Q-Network implementation (policy + target networks)
+- `dqn_agent.py` - Single-network DQN implementation (for ablation comparisons)
 
 **Design Pattern:** Strategy pattern via base class
 
@@ -110,13 +111,15 @@ DDQNAgent
 **Reward Function:**
 
 ```
-reward = 10 * coverage - 5 * energy + 1 * soh + 2 * balance
+reward = 10.0 * r_coverage + 5.0 * r_energy + 1.0 * r_soh + 2.0 * r_balance
 
-Where:
-- coverage = fraction of nodes awake
-- energy = normalized energy usage
-- soh = battery health
-- balance = fairness (low std of charge levels)
+Where (all terms are positive-good, clipped to bounded ranges):
+- r_coverage = fraction of nodes awake [0, 1]
+- r_energy   = -normalized_energy_usage (inverted so lower drain → higher score)
+- r_soh      = average battery health [−1, 1]
+- r_balance  = fairness penalty, −std of charge levels [−1, 0]
+
+A heavy penalty of −10 is applied if the network fails (too many dead nodes).
 ```
 
 ---
@@ -187,7 +190,8 @@ trainer.save_checkpoint('models/best.pth')
 
 - `app.py` - Flask app factory
 - `routes.py` - API endpoints
-- `schemas.py` - Input validation
+- `schemas.py` - Input validation (marshmallow)
+- `tasks.py` - Sync/async training execution and baseline benchmark logic
 
 **Architecture:**
 
@@ -222,6 +226,8 @@ HTTP Response JSON
 
 - `train_model.py` - Standalone training from CLI
 - `evaluate_baselines.py` - Benchmark against reference policies
+- `generate_report.py` - Generate research report from saved metrics JSON
+- `migrate_legacy_runs.py` - Migrate pre-run_id artifacts into the `run_{timestamp}_*` naming scheme (safe, idempotent)
 
 **Design:** Importable modules, not just scripts
 
@@ -234,11 +240,10 @@ HTTP Response JSON
 ```
 frontend/
 ├── templates/
-│   ├── base.html
 │   └── index.html
 └── static/
-    ├── css/
-    ├── js/
+    ├── css/style.css
+    ├── js/app.js
     └── images/
 ```
 

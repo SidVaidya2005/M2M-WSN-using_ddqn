@@ -35,9 +35,9 @@ python scripts/train_model.py \
 
 **Output:**
 
-- `results/trained_model.pth` - Neural network weights
-- `results/training_metrics.json` - Performance metrics
-- `results/training_curve.png` - Loss visualization
+- `results/models/run_{timestamp}_model.pth` - Neural network weights
+- `results/metrics/run_{timestamp}_metadata.json` - Per-run config + summary metrics
+- `results/visualizations/run_{timestamp}_plot.png` - Training progress plot
 
 ### 2. Web Interface Training
 
@@ -45,9 +45,9 @@ Best for interactive exploration and non-technical users.
 
 ```bash
 # Start server
-python -m flask --app backend.app run
+python -m backend.app
 
-# Visit http://localhost:5000
+# Visit http://localhost:5001
 ```
 
 **Advantages:**
@@ -145,8 +145,8 @@ python scripts/train_model.py --episodes 100 --nodes 50 --seed 42
 ### Step 3: Check Results
 
 ```bash
-# View metrics
-cat results/training_metrics.json
+# View metrics (use the actual run_id from your training output)
+cat results/metrics/run_{timestamp}_metadata.json
 
 # Plot training curve
 python -c "
@@ -164,7 +164,7 @@ plt.savefig('results/my_plot.png')
 ### Step 4: Evaluate Model
 
 ```bash
-python scripts/evaluate_baselines.py --model results/trained_model.pth
+python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth
 ```
 
 **Outputs:**

@@ -44,7 +44,7 @@ Health check endpoint to verify server is running.
 **Example:**
 
 ```bash
-curl http://localhost:5000/api/health
+curl http://localhost:5001/api/health
 ```
 
 ---
@@ -80,7 +80,7 @@ Retrieve current configuration.
 **Example:**
 
 ```bash
-curl http://localhost:5000/api/config
+curl http://localhost:5001/api/config
 ```
 
 ---
@@ -129,7 +129,7 @@ Start training a new model.
     "best_episode": 73,
     "avg_lifetime_final_10": 172.4
   },
-  "model_path": "results/models/trained_model_ddqn.pth"
+  "model_path": "results/models/run_20260406_080528_model.pth"
 }
 ```
 
@@ -154,7 +154,7 @@ Start training a new model.
 **Example:**
 
 ```bash
-curl -X POST http://localhost:5000/api/train \
+curl -X POST http://localhost:5001/api/train \
   -H "Content-Type: application/json" \
   -d '{
     "episodes": 50,
@@ -163,6 +163,92 @@ curl -X POST http://localhost:5000/api/train \
     "learning_rate": 0.0001
   }'
 ```
+
+---
+
+### POST /api/train/async
+
+Start training without blocking. Returns a `task_id` immediately; poll for status.
+
+**Request Body:** Same fields as `POST /api/train`.
+
+**Response:**
+
+```json
+{ "task_id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+**Status Code:** 202
+
+---
+
+### GET /api/tasks/\<task_id\>
+
+Poll the status of an async training or benchmark job.
+
+**Response:**
+
+```json
+{ "status": "queued" }
+{ "status": "running" }
+{ "status": "completed", "result": { ... } }
+{ "status": "failed",    "error": "..." }
+{ "status": "not_found" }
+```
+
+`"not_found"` is returned (not a 404) if the task_id is unknown or the server was restarted (task registry is in-memory only).
+
+**Status Code:** 200
+
+---
+
+### GET /api/history
+
+Return all training run metadata, newest first. Scans `results/metrics/` for `*_metadata.json` files. If a matching `*_evaluation.json` exists for a run, it is inlined as `run["evaluation"]`.
+
+**Response:**
+
+```json
+[
+  {
+    "run_id": "run_20260406_080528",
+    "timestamp": "2026-04-06T08:06:10.290101",
+    "config": { "model_type": "ddqn", "episodes": 100, "nodes": 550, ... },
+    "metrics": { "mean_reward": 145.32, "max_reward": 180.5, ... },
+    "image_url": "/api/visualizations/run_20260406_080528_plot.png",
+    "evaluation": { ... }
+  }
+]
+```
+
+**Status Code:** 200
+
+---
+
+### POST /api/evaluate
+
+Submit an async baseline benchmark job for a completed training run.
+
+**Request Body:**
+
+```json
+{ "run_id": "run_20260406_080528", "episodes": 10 }
+```
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| run_id | str | required | From `GET /api/history` |
+| episodes | int | 10 | 1–100 |
+
+**Response:**
+
+```json
+{ "task_id": "550e8400-e29b-41d4-a716-446655440000" }
+```
+
+Poll `GET /api/tasks/<task_id>` for results. On completion, writes `results/metrics/{run_id}_evaluation.json`.
+
+**Status Code:** 202
 
 ---
 
@@ -185,10 +271,10 @@ Retrieve output files (models, metrics, visualizations).
 
 ```bash
 # Download JSON metrics
-curl http://localhost:5000/api/results/training_metrics.json > metrics.json
+curl http://localhost:5001/api/results/training_metrics.json > metrics.json
 
 # Download trained model
-curl http://localhost:5000/api/results/trained_model.pth > model.pth
+curl http://localhost:5001/api/results/trained_model.pth > model.pth
 ```
 
 ---
@@ -221,7 +307,7 @@ All error responses follow this format:
 import requests
 import json
 
-BASE_URL = "http://localhost:5000/api"
+BASE_URL = "http://localhost:5001/api"
 
 # Check health
 response = requests.get(f"{BASE_URL}/health")
@@ -264,7 +350,7 @@ print(json.dumps(metrics, indent=2))
 ## JavaScript Client Example
 
 ```javascript
-const BASE_URL = "http://localhost:5000/api";
+const BASE_URL = "http://localhost:5001/api";
 
 // Health check
 async function checkHealth() {

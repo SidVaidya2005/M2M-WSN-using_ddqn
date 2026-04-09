@@ -118,7 +118,7 @@ Run IDs have the format `run_YYYYMMDD_HHMMSS`. Legacy `trained_model_ddqn.pth` e
 
 - **`WSNEnv.reset()` returns a plain `np.ndarray`**, not a `(obs, info)` tuple. Never do `state, _ = env.reset()` — it will crash with `ValueError: too many values to unpack` because the array has 2750 elements (550 nodes × 5 features). Use `state = env.reset()`.
 - **Scripts require project root on `sys.path`**. All scripts in `scripts/` insert the project root via `Path(__file__).resolve().parent.parent`. If adding a new script, replicate this pattern or it will fail when run from a different directory.
-- **Model and metrics filenames include the model type** (`ddqn` or `dqn`). Don't hardcode `trained_model.pth`; use `Path(config.paths.models) / f"trained_model_{model_type}.pth"`. Note: `config.paths.*` fields are `str`, not `Path` — always wrap with `Path()` before using `/`.
+- **`config.paths.*` fields are `str`, not `Path`** — always wrap with `Path()` before using `/` for joining. Artifacts use the `run_{timestamp}_*` naming scheme (see Output Artifacts above); the legacy `trained_model_ddqn.pth` exists only for CLI scripts.
 - **`POST /api/train` is synchronous** (blocks until training finishes) for frontend compatibility. Use `POST /api/train/async` for non-blocking invocation; poll `GET /api/tasks/<task_id>` for status.
 
 ## Extending the Platform

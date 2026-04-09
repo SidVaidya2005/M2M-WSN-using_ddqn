@@ -71,10 +71,10 @@ Metrics saved to results/training_metrics.json
 ### Option B: Web Server
 
 ```bash
-python -m flask --app backend.app run
+python -m backend.app
 ```
 
-Then visit `http://localhost:5000` in your browser.
+Then visit `http://localhost:5001` in your browser.
 
 **Form Fields:**
 
@@ -91,28 +91,34 @@ After training, check `results/`:
 
 ```
 results/
-├── trained_model.pth          # Neural network weights
-├── training_metrics.json       # Performance metrics
-└── training_curve.png          # Loss/reward plot
+├── models/run_{timestamp}_model.pth              # Neural network weights
+├── metrics/run_{timestamp}_metadata.json          # Per-run config + summary metrics
+└── visualizations/run_{timestamp}_plot.png        # Training progress plot
 ```
+
+Run IDs have the format `run_YYYYMMDD_HHMMSS` (e.g. `run_20260406_080528`).
 
 ### Metrics Explained
 
-**Metrics JSON** (`training_metrics.json`):
+**Metrics JSON** (`run_{timestamp}_metadata.json`):
 
 ```json
 {
-  "training": {
-    "mean_reward": 145.32,
-    "total_reward": 1453.2,
-    "mean_coverage": 0.65
-  },
-  "evaluation": {...},
+  "run_id": "run_20260406_080528",
+  "timestamp": "2026-04-06T08:06:10.290101",
   "config": {
+    "model_type": "ddqn",
     "episodes": 10,
     "nodes": 50,
-    "lr": 1e-4
-  }
+    "learning_rate": 0.0001
+  },
+  "metrics": {
+    "mean_reward": 145.32,
+    "max_reward": 180.5,
+    "best_episode": 7,
+    "avg_final_10": 172.4
+  },
+  "image_url": "/api/visualizations/run_20260406_080528_plot.png"
 }
 ```
 
@@ -169,7 +175,7 @@ python scripts/train_model.py ...
    ```
 3. **Evaluate Baselines**: Compare against reference policies
    ```bash
-   python scripts/evaluate_baselines.py --episodes 20
+   python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth --episodes 20
    ```
 4. **Modify the Environment**: Edit `src/envs/wsn_env.py` to customize
 5. **Deploy**: Run web server for remote training
