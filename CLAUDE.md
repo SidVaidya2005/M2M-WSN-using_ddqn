@@ -2,6 +2,24 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Detailed Rules
+
+Precise, topic-scoped rules live in `.claude/rules/`:
+
+| File | Covers |
+|------|--------|
+| [`architecture.md`](.claude/rules/architecture.md) | Design patterns, layer responsibilities, extension points |
+| [`rl-environment.md`](.claude/rules/rl-environment.md) | WSNEnv API, observation space, reward weights, BatteryModel |
+| [`agents-training.md`](.claude/rules/agents-training.md) | BaseAgent interface, DDQN internals, Trainer API, hyperparameters |
+| [`api-design.md`](.claude/rules/api-design.md) | Sync/async routing, validation, task lifecycle, response shape |
+| [`config-paths.md`](.claude/rules/config-paths.md) | Config singleton, YAML structure, path handling |
+| [`testing.md`](.claude/rules/testing.md) | Conftest singleton reset, fixture sizes, test patterns |
+| [`artifacts.md`](.claude/rules/artifacts.md) | Run ID format, file naming, metadata schema |
+
+Directory-level context: [`frontend/CLAUDE.md`](frontend/CLAUDE.md) · [`backend/CLAUDE.md`](backend/CLAUDE.md)
+
+---
+
 ## Project Overview
 
 A research-grade Deep Reinforcement Learning (RL) platform for optimizing Wireless Sensor Network (WSN) scheduling using Double Deep Q-Networks (DDQN). Exposes both a CLI and a Flask REST API with a web UI.
@@ -29,6 +47,9 @@ python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.p
 
 # Generate research report from saved metrics
 python scripts/generate_report.py
+
+# Migrate pre-run_id artifacts into the new naming scheme (safe, idempotent)
+python scripts/migrate_legacy_runs.py
 ```
 
 ### Tests
@@ -55,7 +76,7 @@ mypy src/ --ignore-missing-imports
 ## Architecture
 
 ```
-Frontend (templates/) → HTTP/JSON → backend/ (Flask)
+Frontend (frontend/templates/ + frontend/static/) → HTTP/JSON → backend/ (Flask)
                                          ↓
                               src/training/trainer.py
                               ├── src/agents/ddqn_agent.py  (DDQNAgent)
@@ -67,6 +88,10 @@ Frontend (templates/) → HTTP/JSON → backend/ (Flask)
                               results/ (models, metrics JSON, PNG plots)
 ```
 
+> **Directory-level detail:**
+> - Frontend (HTML/JS/CSS): [`frontend/CLAUDE.md`](frontend/CLAUDE.md)
+> - Backend (Flask API, task execution): [`backend/CLAUDE.md`](backend/CLAUDE.md)
+
 ### Key Modules
 
 **`config/settings.py`** — Dataclass-based config with validation; use `get_config()` singleton. YAML source: `config/config.yaml`. All components import from here.
@@ -77,15 +102,17 @@ Frontend (templates/) → HTTP/JSON → backend/ (Flask)
 
 **`src/training/trainer.py`** — Orchestrates the training loop. Calls `agent.select_action()` → `env.step()` → `agent.store_transition()` → `agent.learn_step()`. Logs every 10 episodes; saves `.pth` checkpoints and metrics JSON.
 
-**`src/baselines/`** — Reference policies for benchmarking: `RandomPolicy`, `GreedyPolicy`, `EnergyConservativePolicy`, `BalancedRotationPolicy`.
+**`src/baselines/baseline_policies.py`** — Reference policies for benchmarking: `RandomPolicy`, `GreedyPolicy`, `EnergyConservativePolicy`, `BalancedRotationPolicy` (all in one file).
 
-**`backend/routes.py`** — REST endpoints: `POST /api/train` (sync), `POST /api/train/async` (returns task_id), `GET /api/tasks/<task_id>` (poll), `GET /api/config`, `GET /api/health`, plus static serving of plots and metrics JSON. Input validated via `backend/schemas.py` (marshmallow). Background jobs managed in `backend/tasks.py` (threading, in-memory registry).
+**`backend/`** — Flask REST API with sync/async training endpoints, marshmallow validation, and in-memory task registry. See [`backend/CLAUDE.md`](backend/CLAUDE.md) for full route table and execution model.
 
 ### Output Artifacts
-- `results/models/trained_model_{model_type}.pth` — PyTorch policy network weights (e.g. `trained_model_ddqn.pth`)
-- `results/metrics/training_metrics_{model_type}.json` — Per-episode stats
-- `results/metrics/baseline_comparison.json` — Baseline policy comparison (from `evaluate_baselines.py`)
-- `results/visualizations/{model_type}_training_curve.png` — Training progress plots
+- `results/models/run_{timestamp}_model.pth` — PyTorch policy network weights per run
+- `results/metrics/run_{timestamp}_metadata.json` — Per-run config + summary metrics
+- `results/metrics/run_{timestamp}_evaluation.json` — Baseline comparison for that run (written by `POST /api/evaluate`)
+- `results/visualizations/run_{timestamp}_plot.png` — Training progress plot
+
+Run IDs have the format `run_YYYYMMDD_HHMMSS`. Legacy `trained_model_ddqn.pth` exists for CLI scripts.
 
 ## Gotchas
 

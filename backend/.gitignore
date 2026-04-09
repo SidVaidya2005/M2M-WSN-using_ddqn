@@ -1,0 +1,16 @@
+# ── Flask instance folder ─────────────────────────────────────────────────────
+# Created by Flask for instance-specific config (secret keys, local overrides)
+instance/
+
+# ── Flask-Assets cache ────────────────────────────────────────────────────────
+.webassets-cache/
+
+# ── Uploaded / temporary files ────────────────────────────────────────────────
+# If file upload endpoints are added, ignore staging area
+uploads/
+tmp/
+
+# ── Local secrets ─────────────────────────────────────────────────────────────
+# Never commit real secrets; .env is already covered by root .gitignore
+secrets.json
+credentials.json

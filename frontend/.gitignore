@@ -1,0 +1,18 @@
+# ── Generated / downloaded images ────────────────────────────────────────────
+# Training result plots copied into the static directory for local preview
+static/images/*.png
+static/images/*.gif
+static/images/*.jpg
+
+# ── Browser & dev-tool artifacts ─────────────────────────────────────────────
+*.map
+
+# ── Accidental npm usage (project uses CDN, not npm) ─────────────────────────
+node_modules/
+package-lock.json
+yarn.lock
+.pnpm-store/
+
+# ── Sass / PostCSS (not used now, ignore if added later) ─────────────────────
+.sass-cache/
+*.css.map

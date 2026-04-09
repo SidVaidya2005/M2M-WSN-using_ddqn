@@ -1,72 +1,70 @@
-# Git Ignore Rules
-
-# Python
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+*.egg
 *.egg-info/
 .installed.cfg
-*.egg
+.eggs/
+build/
+dist/
+sdist/
+wheels/
 
-# Virtual environments
+# ── Virtual environments ───────────────────────────────────────────────────────
 venv/
-ENV/
+.venv/
 env/
-.venv
+ENV/
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
+# ── Type checking & linting ───────────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.flake8
 
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
-
-# Logging
-logs/
-*.log
-
-# Results (generated files, not version controlled)
-results/
-results/models/
-results/metrics/
-results/visualizations/
-
-# Database
-*.db
-*.sqlite
-
-# Environment
-.env
-.env.local
-
-# Testing
+# ── Testing ───────────────────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
 htmlcov/
+coverage.xml
 
-# Celery
-celerybeat-schedule
-dump.rdb
+# ── Generated results (models, metrics, plots) ────────────────────────────────
+# results/ is entirely generated — nothing inside is source-controlled
+results/
 
-# OS
+# ── Logging ───────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Local config overrides ────────────────────────────────────────────────────
+.env
+.env.local
+config/config.local.yaml
+
+# ── Database ──────────────────────────────────────────────────────────────────
+*.db
+*.sqlite3
+runs.db
+
+# ── Claude local overrides (personal, not shared) ────────────────────────────
+.claude.local.md
+frontend/.claude.local.md
+backend/.claude.local.md
+
+# ── OS & editors ─────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# ── Jupyter (if used for research notebooks) ─────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── Legacy async job broker (Celery/Redis) ───────────────────────────────────
+celerybeat-schedule
+dump.rdb
