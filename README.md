@@ -1,92 +1,91 @@
 # WSN DDQN Training Platform
 
-A comprehensive deep reinforcement learning system for optimizing wireless sensor network (WSN) scheduling strategies. Uses Double Deep Q-Networks (DDQN) to train agents that balance network lifetime, coverage, and energy efficiency.
+A research-grade deep reinforcement learning platform for optimizing Wireless Sensor Network (WSN) scheduling using Double Deep Q-Networks (DDQN). Trains agents that balance network lifetime, coverage, and energy efficiency — exposed via both a CLI and a Flask REST API with a web dashboard.
 
-## Project Overview
+---
 
-This project implements a research-grade RL training platform with:
+## Key Concepts
 
-- **Modular Architecture**: Clean separation of RL logic, environments, and web interface
-- **Scalable Web Interface**: Flask-based REST API for remote training and monitoring
-- **Comprehensive Benchmarking**: Baseline policies and metrics for comparison
-- **Production-Ready**: Async background jobs, logging, configuration management
+### Double Deep Q-Network (DDQN)
+
+The agent uses two neural networks (policy + target) to reduce Q-value overestimation, an experience replay buffer for sample efficiency, and a decaying epsilon-greedy exploration schedule.
+
+### WSN Environment
+
+Simulates N sensor nodes, each with a battery tracked by State of Charge (SoC) and State of Health (SoH). At each step the agent decides which nodes sleep or wake. The episode ends when too many nodes die (SoC < `death_threshold`). Reward balances coverage, energy efficiency, battery health, and fairness.
+
+### Baseline Policies
+
+| Policy | Strategy |
+|--------|----------|
+| Random | Random sleep/wake per node |
+| Greedy | Wake the highest (SoC × SoH) nodes |
+| EnergyConservative | Wake only the healthiest 20% of nodes |
+| BalancedRotation | Rotate awake sets periodically |
+
+---
 
 ## Quick Start
 
-### 1. Install Dependencies
-
 ```bash
+# 1. Set up environment
+python -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
-```
-
-### 2. Configuration
-
-Copy the example environment file:
-
-```bash
+mkdir -p results/models results/metrics results/visualizations logs
 cp .env.example .env
+
+# 2. Train via CLI
+python scripts/train_model.py --episodes 100 --nodes 50 --lr 1e-4 --gamma 0.99 --batch-size 64 --seed 42 --model-type ddqn
+
+# 3. Or launch the web dashboard
+python -m backend.app        # → http://localhost:5001
 ```
 
-### 3. Train a Model via CLI
-
-```bash
-python scripts/train_model.py --episodes 100 --nodes 50 --lr 1e-4
-```
-
-### 4. Run Web Server
-
-```bash
-python -m backend.app
-```
-
-Then visit `http://localhost:5001` in your browser.
-
-### 5. Evaluate Against Baselines
-
-```bash
-python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth --episodes 10
-```
+---
 
 ## Project Structure
 
 ```
 m2m_ddqn/
-├── config/                    # Configuration management
-├── src/                       # Core application logic
-│   ├── agents/               # RL agent implementations
-│   ├── envs/                 # Gym environments
-│   ├── baselines/            # Baseline policies
-│   ├── training/             # Training loop
-│   └── utils/                # Logging, metrics, visualization
-├── backend/                   # Flask web server
-├── frontend/                  # Web UI templates & assets
-├── scripts/                   # Standalone training/evaluation scripts
-├── tests/                     # Unit tests
-├── docs/                      # Documentation
-└── results/                   # Output directory
+├── config/              # config.yaml + settings singleton
+├── src/
+│   ├── agents/          # BaseAgent, DDQNAgent, DQNAgent
+│   ├── envs/            # WSNEnv (Gymnasium), BatteryModel
+│   ├── baselines/       # baseline_policies.py
+│   ├── training/        # Trainer (training loop)
+│   └── utils/           # logging, metrics, visualization
+├── backend/             # Flask API (app.py, routes.py, tasks.py, schemas.py)
+├── frontend/            # templates/index.html + static/ (CDN-based, no build step)
+├── scripts/             # CLI tools (train, evaluate, report, migrate)
+├── tests/               # pytest suite
+├── docs/                # Detailed reference guides
+└── results/             # Generated output (gitignored)
+    ├── models/          # run_{timestamp}_model.pth
+    ├── metrics/         # run_{timestamp}_metadata.json, _evaluation.json
+    └── visualizations/  # run_{timestamp}_plot.png
 ```
 
-## Key Components
+---
 
-### Environment
+## Common Tasks
 
-[src/envs/wsn_env.py](src/envs/wsn_env.py) — Gym-compatible environment simulating WSN with battery degradation
+| Task | Command |
+|------|---------|
+| Train (CLI) | `python scripts/train_model.py --episodes 500 --nodes 50 --seed 42 --model-type ddqn` |
+| Web dashboard | `python -m backend.app` → http://localhost:5001 |
+| Evaluate baselines | `python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth --episodes 10` |
+| Generate report | `python scripts/generate_report.py` |
+| Migrate legacy artifacts | `python scripts/migrate_legacy_runs.py` |
+| Run tests | `pytest tests/ -v` |
+| Format code | `black src/ backend/` |
+| Lint | `flake8 src/ backend/` |
+| Type-check | `mypy src/ --ignore-missing-imports` |
 
-### Agent
-
-[src/agents/ddqn_agent.py](src/agents/ddqn_agent.py) — DDQN agent with experience replay and target network
-
-### Trainer
-
-[src/training/trainer.py](src/training/trainer.py) — Generic training loop supporting multiple agents/environments
-
-### Web API
-
-[backend/routes.py](backend/routes.py) — REST endpoints for training without CLI
+---
 
 ## Configuration
 
-All settings in [config/config.yaml](config/config.yaml):
+All settings in [`config/config.yaml`](config/config.yaml):
 
 ```yaml
 training:
@@ -96,71 +95,61 @@ training:
   gamma: 0.99
 
 environment:
-  num_nodes: 50
+  num_nodes: 550
   arena_size: [500, 500]
+  sink_position: [250, 250]
   max_steps: 1000
+  death_threshold: 0.3
 ```
 
-## Results
+Override any value via CLI flags or the web form — CLI flags take precedence over the YAML.
 
-Models and metrics saved to `results/`:
+---
 
-```
-results/
-├── models/              # Trained weights
-├── metrics/             # JSON metrics
-└── visualizations/      # Training curves & plots
-```
+## API Overview
 
-## Development
+The REST API runs at `http://localhost:5001/api`:
 
-### Run Tests
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/train` | Start training (blocking) |
+| POST | `/train/async` | Start training (non-blocking, returns `task_id`) |
+| GET | `/tasks/<task_id>` | Poll async job status |
+| GET | `/history` | List all training runs, newest first |
+| POST | `/evaluate` | Run baseline benchmark for a `run_id` |
+| GET | `/config` | Current configuration |
+| GET | `/health` | Health check |
 
-```bash
-pytest tests/ -v
-```
+See [`docs/api.md`](docs/api.md) for full request/response schemas.
 
-### Code Quality
+---
 
-```bash
-black src/ backend/
-flake8 src/ backend/
-mypy src/ --ignore-missing-imports
-```
-
-### Documentation
-
-See [docs/](docs/) for detailed guides:
-
-- [Architecture](docs/architecture.md)
-- [Training Guide](docs/training_guide.md)
-- [API Reference](docs/api.md)
-
-## Reproduction
-
-To reproduce published results:
+## Reproducibility
 
 ```bash
 python scripts/train_model.py \
-  --episodes 500 \
-  --nodes 50 \
-  --lr 1e-4 \
-  --gamma 0.99 \
-  --batch-size 64 \
-  --seed 42
+  --episodes 500 --nodes 50 \
+  --lr 1e-4 --gamma 0.99 \
+  --batch-size 64 --seed 42 \
+  --model-type ddqn
 ```
+
+The `--seed` controls initial weights, node positions, and exploration randomness — the same seed always produces the same results.
+
+---
+
+## Documentation
+
+| Guide | Description |
+|-------|-------------|
+| [`docs/getting_started.md`](docs/getting_started.md) | Installation, first run, understanding results |
+| [`docs/architecture.md`](docs/architecture.md) | System design, data flow, design patterns |
+| [`docs/training_guide.md`](docs/training_guide.md) | Hyperparameter tuning, advanced training, troubleshooting |
+| [`docs/api.md`](docs/api.md) | Full REST API reference |
+
+---
 
 ## References
 
-This implementation is based on:
-
-- Deep Reinforcement Learning with Double Q-learning ([Hasselt et al., 2015](https://arxiv.org/abs/1509.06461))
-- Gym: A Toolkit for Developing and Comparing RL Algorithms ([Brockman et al., 2016](https://arxiv.org/abs/1606.01540))
-
-## License
-
-[Add your license here]
-
-## Contact
-
-[Add contact information]
+- Deep Reinforcement Learning with Double Q-learning — [Hasselt et al., 2015](https://arxiv.org/abs/1509.06461)
+- Gymnasium: A Standard API for Reinforcement Learning Environments — [Farama Foundation](https://gymnasium.farama.org)
