@@ -46,8 +46,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "wsn-train=scripts.train_model:main",
-            "wsn-eval=scripts.evaluate_baselines:main",
+            "wsn-train=scripts.train:main",
         ],
     },
 )

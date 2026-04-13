@@ -28,6 +28,5 @@ paths:
 
 visualization:
   save_plots: true
-  save_gif: true
   plot_dpi: 150
   animation_interval: 100

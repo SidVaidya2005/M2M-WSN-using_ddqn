@@ -1,6 +1,6 @@
 """Input validation schemas for API requests."""
 
-from marshmallow import Schema, fields, validate, ValidationError
+from marshmallow import Schema, fields, validate
 
 
 class TrainingRequestSchema(Schema):
@@ -38,14 +38,4 @@ class TrainingRequestSchema(Schema):
     model_type = fields.Str(
         load_default="ddqn",
         validate=validate.OneOf(["dqn", "ddqn"]),
-    )
-
-
-class EvaluationRequestSchema(Schema):
-    """Schema for POST /api/evaluate request body."""
-
-    run_id = fields.Str(required=True)
-    episodes = fields.Int(
-        load_default=10,
-        validate=validate.Range(min=1, max=100),
     )

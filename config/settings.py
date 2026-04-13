@@ -57,7 +57,6 @@ class PathConfig:
 class VisualizationConfig:
     """Visualization settings."""
     save_plots: bool
-    save_gif: bool
     plot_dpi: int
     animation_interval: int
 

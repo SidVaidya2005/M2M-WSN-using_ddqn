@@ -44,14 +44,13 @@ def _apply_config_defaults(run: dict, config) -> None:
             cfg[key] = val
 
 from src.utils.logger import get_logger
-from .schemas import TrainingRequestSchema, EvaluationRequestSchema
-from .tasks import run_training, submit_training_task, get_task, submit_benchmark_task
+from .schemas import TrainingRequestSchema
+from .tasks import run_training, submit_training_task, get_task
 
 api_bp = Blueprint("api", __name__)
 logger = get_logger(__name__)
 
 _training_schema = TrainingRequestSchema()
-_benchmark_schema = EvaluationRequestSchema()
 
 
 @api_bp.route("/health", methods=["GET"])
@@ -171,47 +170,10 @@ def get_history():
                 run = json.load(f)
             # Fill null config fields with project defaults
             _apply_config_defaults(run, config)
-            # Inline benchmark results if they exist
-            bench_file = metrics_dir / f"{run['run_id']}_evaluation.json"
-            if bench_file.exists():
-                try:
-                    with open(bench_file) as bf:
-                        run["evaluation"] = json.load(bf)
-                except Exception as exc:
-                    logger.warning(f"Could not read benchmark file {bench_file}: {exc}")
             runs.append(run)
         except Exception as exc:
             logger.warning(f"Skipping corrupt metadata file {meta_file}: {exc}")
     return jsonify(runs), 200
-
-
-@api_bp.route("/evaluate", methods=["POST"])
-def start_benchmark():
-    """Submit an async baseline benchmark job for a completed training run.
-
-    Request body:
-        run_id    str  required — the run_id from GET /api/history
-        episodes  int  optional — evaluation episodes per policy (default 10, max 100)
-
-    Returns:
-        202  {"status": "queued", "task_id": "<uuid>"}
-        400  Validation errors
-        404  run_id metadata not found
-    """
-    data = request.get_json() or {}
-
-    try:
-        params = _benchmark_schema.load(data)
-    except ValidationError as exc:
-        return jsonify({"status": "error", "errors": exc.messages}), 400
-
-    config = current_app.config.get("CONFIG")
-    metadata_path = _abs(config.paths.metrics) / f"{params['run_id']}_metadata.json"
-    if not metadata_path.exists():
-        return jsonify({"status": "error", "message": f"Run '{params['run_id']}' not found"}), 404
-
-    task_id = submit_benchmark_task(params, config)
-    return jsonify({"status": "queued", "task_id": task_id}), 202
 
 
 @api_bp.route("/results/<path:filename>", methods=["GET"])
