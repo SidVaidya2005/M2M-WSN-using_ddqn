@@ -4,7 +4,7 @@ Standalone training script for WSN DDQN/DQN model.
 This script can be run from command line to train models without using the web interface.
 
 Usage:
-    python scripts/train_model.py --episodes 500 --nodes 550 --lr 1e-4 --model-type ddqn
+    python scripts/train.py --episodes 500 --nodes 50 --lr 1e-4 --model-type ddqn
 """
 
 import argparse

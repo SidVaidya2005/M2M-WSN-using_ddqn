@@ -11,7 +11,8 @@ class TrainingRequestSchema(Schema):
         validate=validate.Range(min=1, max=10000),
     )
     nodes = fields.Int(
-        load_default=550,
+        load_default=None,
+        allow_none=True,
         validate=validate.Range(min=10, max=10000),
     )
     learning_rate = fields.Float(

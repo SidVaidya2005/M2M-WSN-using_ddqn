@@ -57,7 +57,7 @@ def run_training(params: dict, config) -> Dict[str, Any]:
     """
     run_id = datetime.datetime.now().strftime("run_%Y%m%d_%H%M%S")
     episodes = params["episodes"]
-    nodes = params["nodes"]
+    nodes = params.get("nodes") or config.environment.num_nodes
     lr = params["learning_rate"]
     gamma = params["gamma"]
     batch_size = params["batch_size"]

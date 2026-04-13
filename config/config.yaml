@@ -19,6 +19,17 @@ environment:
   energy_sleep: 0.01
   death_threshold: 0.3
   seed: 42
+  reward_weights:
+    coverage: 10.0
+    energy: 5.0
+    soh: 1.0
+    balance: 2.0
+  charging:
+    enabled: true
+    rate: 0.05
+    threshold: 0.2
+  wake_cooperation:
+    low_battery_soc: 0.5
 
 paths:
   models: results/models
