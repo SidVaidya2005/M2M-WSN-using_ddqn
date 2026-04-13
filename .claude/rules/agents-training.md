@@ -2,7 +2,7 @@
 
 ## BaseAgent Interface
 
-All agents (including baselines) must implement:
+All agents must implement:
 
 ```python
 select_action(state, eval_mode=False) -> np.ndarray   # action vector length N
@@ -12,22 +12,31 @@ save_model(path: str)
 load_model(path: str)
 ```
 
-`eval_mode=True` disables exploration (epsilon=0 for DDQN, deterministic for baselines). Always pass `eval_mode=True` during benchmark evaluation.
+`eval_mode=True` disables exploration (epsilon=0). Always pass `eval_mode=True` during evaluation runs.
 
-## DDQNAgent Internals
+## DDQNAgent — Primary Agent
 
-- **Two networks**: `q_net` (policy) and `target_net` — target is updated periodically, not every step
-- **Replay buffer**: experiences are stored in a circular buffer; `learn_step()` is a no-op until `len(buffer) >= batch_size`
-- **Epsilon schedule**: decays from `epsilon_start` to `epsilon_end` over `epsilon_decay` steps — check `agent.epsilon` to monitor exploration
-- **Gradient clipping**: applied in `learn_step()` to prevent exploding gradients; default clip norm is `10.0`
+- **Two networks**: `q_net` (policy) and `target_net` — target is updated every `target_update_frequency` steps
+- **Bellman target** (decoupled action selection/evaluation):
+  ```
+  a*  = argmax_a Q_online(s', a)          # online picks action
+  y   = r + γ * Q_target(s', a*) * (1-done)   # target evaluates it
+  ```
+  This reduces maximization bias, giving more stable learning on multi-objective WSN reward
+- **Replay buffer**: circular, size `replay_buffer_size`; `learn_step()` is a no-op until `len(buffer) >= min_replay_size`
+- **Epsilon schedule**: decays from `epsilon_start` to `epsilon_end` over `epsilon_decay` steps
+- **Gradient clipping**: applied in `learn_step()` with default clip norm `10.0`
 
-## DQNAgent vs DDQNAgent
+## DQNAgent — Comparison Agent
 
 | | DQNAgent | DDQNAgent |
 |-|----------|-----------|
-| Networks | 1 | 2 (policy + target) |
-| Q-target | max Q from same network | action selected by policy, valued by target |
+| Networks | Shares DDQN architecture | 2 (policy + target) |
+| Q-target | `y = r + γ * max_a Q_target(s', a) * (1-done)` | Decoupled (see above) |
 | Stability | lower | higher |
+| Purpose | Ablation comparison only | Primary model for all API calls |
+
+`DQNAgent` is a subclass of `DDQNAgent` that overrides only the target computation in `learn_step()`. It exists solely for DDQN-vs-DQN comparison graphs.
 
 Default for all API calls is `"ddqn"`. Use `"dqn"` only for ablation comparisons.
 
@@ -36,11 +45,10 @@ Default for all API calls is `"ddqn"`. Use `"dqn"` only for ablation comparisons
 ```python
 trainer = Trainer(agent, env, seed=42)
 rewards, metrics = trainer.train(episodes=100)      # returns (list[float], dict)
-eval_rewards, _ = trainer.evaluate(episodes=10)     # no learning, no epsilon decay
 trainer.save_checkpoint(path)                        # saves agent weights
 ```
 
-**`train()` mutates agent state** (epsilon, replay buffer, network weights). `evaluate()` does not.
+**`train()` mutates agent state** (epsilon, replay buffer, network weights).
 
 ## Hyperparameter Ranges
 
@@ -49,12 +57,12 @@ trainer.save_checkpoint(path)                        # saves agent weights
 | learning_rate | 1e-5 – 1e-3 | Start with 1e-4; reduce if loss spikes |
 | gamma | 0.95 – 0.99 | 0.99 = longer horizon planning |
 | batch_size | 32 – 256 | Larger = more stable, slower per step |
-| episodes | 50 – 1000 | 550-node full-scale: ~45 min/100 ep on CPU |
+| episodes | 50 – 1000 | 50-node default: fast on CPU |
 
 **Seed controls**: initial weights, node positions, exploration noise — same seed = same results.
 
 ## Performance Notes
 
 - PyTorch auto-selects CUDA if available; no manual device configuration needed
-- For 550 nodes: expect ~45 min/100 episodes on CPU, ~8 min on GPU
-- Replay buffer fills before learning starts — first `batch_size` steps produce no loss
+- For 50 nodes: training is fast on CPU
+- Replay buffer fills before learning starts — first `min_replay_size` steps produce no loss

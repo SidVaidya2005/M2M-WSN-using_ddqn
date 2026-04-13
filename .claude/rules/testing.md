@@ -6,8 +6,9 @@
 |------|--------|
 | `tests/test_agent.py` | `DDQNAgent`, `DQNAgent` — unit tests, no env needed |
 | `tests/test_env.py` | `WSNEnv`, `BatteryModel` — environment dynamics |
-| `tests/test_baselines.py` | All baseline policies via `BaseAgent` interface |
 | `tests/test_backend.py` | Flask routes — uses `app.test_client()` |
+
+> `tests/test_baselines.py` has been removed — baselines no longer exist.
 
 ## Config Singleton Reset (Critical)
 
@@ -35,13 +36,13 @@ def small_env():
     return WSNEnv(N=10, max_steps=50, death_threshold=0.3)
 ```
 
-Never use the production default of 550 nodes in tests — it makes the suite unusable.
+Never use the production default of 50 nodes in tests — keep tests fast with 10 nodes.
 
 ## Agent Test Pattern
 
 ```python
 agent = DDQNAgent(state_dim=50, action_dim=2, node_count=10, batch_size=8)
-# state_dim = N * 5 features
+# state_dim = N * 5 features (will become N * 6 after Phase 2)
 state = np.zeros(50)
 action = agent.select_action(state)
 assert action.shape == (10,)
@@ -62,6 +63,8 @@ def test_health(client):
 ```
 
 The Flask app fixture must set `app.config["CONFIG"]` — the `conftest.py` creates a minimal config for this.
+
+**Removed endpoints:** Do not write tests for `/api/evaluate` — it no longer exists.
 
 ## Running Tests
 

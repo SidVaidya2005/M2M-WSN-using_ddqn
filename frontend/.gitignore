@@ -1,18 +1,27 @@
-# ── Generated / downloaded images ────────────────────────────────────────────
-# Training result plots copied into the static directory for local preview
+# ── Generated / downloaded result plots ──────────────────────────────────────
+# Training plots are served via /api/visualizations/ — never stored here.
+# If any are copied locally for preview, ignore them.
 static/images/*.png
 static/images/*.gif
 static/images/*.jpg
+static/images/*.jpeg
 
-# ── Browser & dev-tool artifacts ─────────────────────────────────────────────
+# ── Source maps (no build step; ignore if tooling is added later) ─────────────
 *.map
+*.js.map
+*.css.map
 
-# ── Accidental npm usage (project uses CDN, not npm) ─────────────────────────
+# ── Accidental package manager usage ──────────────────────────────────────────
+# This project uses CDN (Tailwind, DOMPurify) — no npm/yarn build step.
 node_modules/
 package-lock.json
 yarn.lock
+pnpm-lock.yaml
 .pnpm-store/
+.npm/
 
-# ── Sass / PostCSS (not used now, ignore if added later) ─────────────────────
+# ── CSS preprocessors (not currently used) ────────────────────────────────────
 .sass-cache/
-*.css.map
+
+# ── Tailwind JIT cache (if local Tailwind CLI is ever added) ──────────────────
+.tailwindcss-cache/

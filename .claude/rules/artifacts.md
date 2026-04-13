@@ -19,12 +19,13 @@ The run_id is the primary key for all output artifacts from a single training ru
 |------|------|-----------|
 | Model weights | `results/models/{run_id}_model.pth` | `tasks.run_training()` |
 | Training metadata | `results/metrics/{run_id}_metadata.json` | `tasks.run_training()` |
-| Baseline evaluation | `results/metrics/{run_id}_evaluation.json` | `tasks.run_baseline_benchmark()` |
 | Training plot | `results/visualizations/{run_id}_plot.png` | `tasks.run_training()` |
 
-**Legacy**: `results/models/trained_model_ddqn.pth` exists for CLI scripts only. Never reference this in backend code — use the `run_id` pattern.
+**Removed:**
+- `{run_id}_evaluation.json` — baseline evaluation artifacts no longer exist
+- Legacy `trained_model_ddqn.pth` — avoid referencing in new code
 
-## Metadata Schema
+## Current Metadata Schema
 
 `{run_id}_metadata.json` structure:
 ```json
@@ -34,7 +35,7 @@ The run_id is the primary key for all output artifacts from a single training ru
   "config": {
     "model_type": "ddqn",
     "episodes": 100,
-    "nodes": 550,
+    "nodes": 50,
     "learning_rate": 0.0001,
     "gamma": 0.99,
     "batch_size": 64,
@@ -49,20 +50,21 @@ The run_id is the primary key for all output artifacts from a single training ru
     "avg_final_10": 172.4
   },
   "image_url": "/api/visualizations/{run_id}_plot.png",
-  "model_path": "<absolute path to .pth>"
+  "model_path": "<relative path to .pth>"
 }
 ```
 
-`config` fields may be `null` if training crashed before saving. Code that reads metadata must handle null values.
+### Planned Schema Upgrade (Phase 3)
+
+The metadata will be restructured to:
+- Promote `model_used`, `episodes`, `num_nodes`, `learning_rate`, `gamma`, `death_threshold`, `max`, `seed` to top-level fields
+- Add `series` block with per-episode arrays: `episode_reward`, `coverage`, `avg_soh`, `alive_fraction`, `mean_soc`
+- Add richer `metrics`: `final_coverage`, `final_avg_soh`, `network_lifetime`
+
+## Config Field Handling
+
+`config` fields may be `null` if training crashed before saving. Code that reads metadata must handle null values. The `GET /api/history` endpoint fills null config fields with current project defaults via `_apply_config_defaults()`.
 
 ## GET /api/history Behavior
 
-Scans `results/metrics/` for `*_metadata.json` files. For each run, if a matching `{run_id}_evaluation.json` exists, it is inlined as `run["evaluation"]`. Runs are returned newest-first.
-
-## Benchmark Reconstruction Rule
-
-`run_baseline_benchmark()` rebuilds `WSNEnv` from the metadata `config` block. If any config field is `null`, it falls back to the current `config.yaml` defaults — which may not match the original training environment. Always ensure training runs complete fully before benchmarking.
-
-## migrate_legacy_runs.py
-
-Copies pre-run_id artifacts (e.g. `trained_model_ddqn.pth`) into the `run_{timestamp}_*` naming scheme. Safe to run multiple times (idempotent, copies only — never moves or deletes). Run this once after pulling from a branch that predates the run_id system.
+Scans `results/metrics/` for `*_metadata.json` files. For each run, null config fields are filled from `config.yaml` defaults. Runs are returned newest-first.

@@ -1,12 +1,21 @@
 # API Design Rules
 
-## Sync vs Async
+## Route Table (Current)
 
-| Endpoint | Mode | Use when |
-|----------|------|----------|
+| Endpoint | Mode | Purpose |
+|----------|------|---------|
+| `GET /api/health` | sync | Health check |
+| `GET /api/config` | sync | Return current config as JSON |
 | `POST /api/train` | **Blocking** — waits for training to finish | Frontend default (connection must stay open) |
 | `POST /api/train/async` | Non-blocking — returns `task_id` immediately | Long runs, scripted calls |
-| `POST /api/evaluate` | Non-blocking — returns `task_id` | Always (baselines take minutes) |
+| `GET /api/tasks/<task_id>` | sync | Poll task status |
+| `GET /api/history` | sync | List all training runs (newest first) |
+| `GET /api/results/<path>` | sync | Serve metrics JSON files |
+| `GET /api/visualizations/<path>` | sync | Serve visualization PNGs |
+
+**Removed endpoints:** `/api/evaluate` (baseline benchmarking) was removed in Phase 0.
+
+**Planned (Phase 4):** `GET /api/compare?a=<run_id>&b=<run_id>` for DDQN-vs-DQN comparison plots.
 
 For any new long-running operation: add a `submit_*_task()` function to `tasks.py` using the daemon-thread pattern, and expose both sync and async routes.
 
@@ -18,8 +27,8 @@ GET /api/tasks/<task_id> → { status: "queued" | "running" | "completed" | "fai
 ```
 
 - Task state is **in-memory only** — lost on server restart
-- `"not_found"` is a valid status (not a 404) — handle it in clients the same as `"failed"`
-- Completed tasks stay in the registry indefinitely (no expiry); do not rely on this for large result storage
+- `"not_found"` is returned as a 404 with `{"status": "not_found", "task_id": "..."}`
+- Completed tasks stay in the registry indefinitely (no expiry)
 
 ## Validation Pattern
 
@@ -34,6 +43,8 @@ except ValidationError as e:
 ```
 
 Schemas live in `backend/schemas.py`. `load_default` provides the default value — never set defaults in route handlers.
+
+**`nodes` field:** defaults to `None` in the schema; resolved at runtime as `params.get("nodes") or config.environment.num_nodes` (50 from config).
 
 ## Response Shape
 
@@ -68,3 +79,7 @@ metadata_path = Path(config.paths.metrics) / f"{run_id}_metadata.json"  # breaks
 ```
 
 `_abs()` is defined in `routes.py` and calls `_project_root()` to anchor all paths to the project root regardless of CWD.
+
+## History Endpoint
+
+`GET /api/history` scans `results/metrics/` for `*_metadata.json` files. Each run's `config` block is filled with project defaults for any null fields via `_apply_config_defaults()`. Runs are returned newest-first.

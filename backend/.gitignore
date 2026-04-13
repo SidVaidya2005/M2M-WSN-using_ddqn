@@ -6,7 +6,7 @@ instance/
 .webassets-cache/
 
 # ── Uploaded / temporary files ────────────────────────────────────────────────
-# If file upload endpoints are added, ignore staging area
+# If file upload endpoints are added in a future phase, ignore the staging area
 uploads/
 tmp/
 
@@ -14,3 +14,10 @@ tmp/
 # Never commit real secrets; .env is already covered by root .gitignore
 secrets.json
 credentials.json
+
+# ── In-memory task dump (if debug serialisation is added) ─────────────────────
+tasks_dump.json
+
+# ── Profiling / performance ────────────────────────────────────────────────────
+*.prof
+*.lprof

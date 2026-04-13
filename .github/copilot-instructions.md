@@ -25,3 +25,7 @@ Refer to the `docs/` directory for detailed context rather than duplicating patt
 - **Training**: See [docs/training_guide.md](docs/training_guide.md)
 - **API**: See [docs/api.md](docs/api.md)
 - **Getting Started**: See [docs/getting_started.md](docs/getting_started.md)
+
+
+## for more information
+@CLAUDE.md

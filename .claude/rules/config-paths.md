@@ -12,21 +12,78 @@ Never instantiate the config class directly. The singleton is reset between test
 
 ## Config Structure (YAML keys → attribute access)
 
+### Training
 ```
 config.training.episodes          config.training.batch_size
 config.training.learning_rate     config.training.gamma
+config.training.epsilon_start     config.training.epsilon_end
+config.training.epsilon_decay     config.training.target_update_frequency
+config.training.replay_buffer_size config.training.min_replay_size
+```
 
-config.environment.num_nodes      config.environment.max_steps
-config.environment.arena_size     config.environment.sink_position
-config.environment.death_threshold
+### Environment
+```
+config.environment.num_nodes       # default: 50
+config.environment.arena_size      # [500, 500]
+config.environment.sink_position   # [250, 250]
+config.environment.max_steps       # 1000
+config.environment.death_threshold # 0.3
+config.environment.seed            # 42
+config.environment.timestep_energy_awake  # 1.0
+config.environment.energy_sleep    # 0.01
+```
 
+### Environment — Reward Weights (Phase 1+)
+```
+config.environment.reward_weights.coverage   # 10.0
+config.environment.reward_weights.energy     # 5.0
+config.environment.reward_weights.soh        # 1.0
+config.environment.reward_weights.balance    # 2.0
+```
+
+### Environment — Charging (configured, wired in Phase 2)
+```
+config.environment.charging.enabled    # true
+config.environment.charging.rate       # 0.05
+config.environment.charging.threshold  # 0.2
+```
+
+### Environment — Cooperative Wake-Up (configured, wired in Phase 2)
+```
+config.environment.wake_cooperation.low_battery_soc  # 0.5
+```
+
+### Paths
+```
 config.paths.models               → str, e.g. "results/models"
 config.paths.metrics              → str, e.g. "results/metrics"
 config.paths.visualizations       → str, e.g. "results/visualizations"
 config.paths.logs                 → str, e.g. "logs"
 ```
 
+### Visualization
+```
+config.visualization.save_plots        # true
+config.visualization.plot_dpi          # 150
+config.visualization.animation_interval # 100
+```
+
 `config.paths.create_all()` creates all result directories — call this once at app startup (already done in `create_app()`).
+
+## Dataclass Hierarchy
+
+```
+Config
+├── TrainingConfig
+├── EnvironmentConfig
+│   ├── RewardWeightsConfig
+│   ├── ChargingConfig
+│   └── WakeCooperationConfig
+├── PathConfig
+└── VisualizationConfig
+```
+
+All are dataclasses in `config/settings.py`. `Config.load()` constructs nested sub-configs from YAML dicts. `Config.to_dict()` serialises them all.
 
 ## Path Handling Rules
 

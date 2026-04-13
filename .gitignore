@@ -11,6 +11,7 @@ build/
 dist/
 sdist/
 wheels/
+MANIFEST
 
 # ── Virtual environments ───────────────────────────────────────────────────────
 venv/
@@ -18,7 +19,7 @@ venv/
 env/
 ENV/
 
-# ── Type checking & linting ───────────────────────────────────────────────────
+# ── Type checking & linting ────────────────────────────────────────────────────
 .mypy_cache/
 .ruff_cache/
 .flake8
@@ -26,11 +27,22 @@ ENV/
 # ── Testing ───────────────────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
 coverage.xml
+*.coveragerc
+
+# ── PyTorch / ML artifacts ────────────────────────────────────────────────────
+# Generated model checkpoints and training state — use run_id naming instead
+*.pth
+*.pt
+*.onnx
+*.pkl
+*.pickle
 
 # ── Generated results (models, metrics, plots) ────────────────────────────────
-# results/ is entirely generated — nothing inside is source-controlled
+# results/ is entirely generated — nothing inside is source-controlled.
+# Use run_id-named artifacts only (run_YYYYMMDD_HHMMSS_*).
 results/
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -40,31 +52,45 @@ logs/
 # ── Local config overrides ────────────────────────────────────────────────────
 .env
 .env.local
+.env.*.local
 config/config.local.yaml
 
 # ── Database ──────────────────────────────────────────────────────────────────
 *.db
+*.sqlite
 *.sqlite3
 runs.db
 
-# ── Claude local overrides (personal, not shared) ────────────────────────────
+# ── Claude local overrides (personal, not shared) ─────────────────────────────
 .claude.local.md
 frontend/.claude.local.md
 backend/.claude.local.md
+.claude/settings.local.json
 
-# ── OS & editors ─────────────────────────────────────────────────────────────
+# ── OS & editors ──────────────────────────────────────────────────────────────
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
 *.swp
 *.swo
 *~
 .vscode/
 .idea/
+*.sublime-project
+*.sublime-workspace
 
-# ── Jupyter (if used for research notebooks) ─────────────────────────────────
+# ── Jupyter ───────────────────────────────────────────────────────────────────
 .ipynb_checkpoints/
 *.ipynb
 
-# ── Legacy async job broker (Celery/Redis) ───────────────────────────────────
-celerybeat-schedule
-dump.rdb
+# ── Matplotlib / visualization cache ──────────────────────────────────────────
+# Ignore locally generated plots that land outside results/ (e.g. during dev)
+*.png
+*.gif
+*.jpg
+*.jpeg
+# Exception: keep any committed images in docs/ or frontend/static/
+!docs/**/*.png
+!docs/**/*.jpg
+!frontend/static/img/**
