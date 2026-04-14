@@ -1,10 +1,11 @@
 """
-Standalone training script for WSN DDQN/DQN model.
+CLI wrapper for WSN DDQN/DQN training.
 
-This script can be run from command line to train models without using the web interface.
+Produces identical artifacts to the web API (run_YYYYMMDD_HHMMSS naming).
 
 Usage:
     python scripts/train.py --episodes 500 --nodes 50 --lr 1e-4 --model-type ddqn
+    python scripts/train.py --model-type dqn --episodes 100 --seed 42
 """
 
 import argparse
@@ -17,57 +18,67 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from config.settings import get_config
-from src.agents.ddqn_agent import DDQNAgent
-from src.agents.dqn_agent import DQNAgent
-from src.envs.wsn_env import WSNEnv
-from src.training.trainer import Trainer
+from backend.tasks import run_training
 from src.utils.logger import get_logger
-from src.utils.visualization import save_metrics_json, plot_training_dashboard
 
 logger = get_logger(__name__)
 
 
-def parse_args():
-    """Parse command line arguments."""
+def _parse_args():
+    config = get_config()
+    env = config.environment
+    tr = config.training
+
     parser = argparse.ArgumentParser(
         description="Train a DDQN or DQN agent for WSN scheduling"
     )
-
     parser.add_argument(
         "--episodes",
         type=int,
-        default=100,
-        help="Number of training episodes (default: 100)",
+        default=tr.episodes,
+        help=f"Number of training episodes (default: {tr.episodes})",
     )
     parser.add_argument(
         "--nodes",
         type=int,
-        default=50,
-        help="Number of sensor nodes (default: 50)",
+        default=None,
+        help=f"Number of sensor nodes (default: {env.num_nodes} from config)",
     )
     parser.add_argument(
         "--lr",
         type=float,
-        default=1e-4,
-        help="Learning rate (default: 1e-4)",
+        default=tr.learning_rate,
+        help=f"Learning rate (default: {tr.learning_rate})",
     )
     parser.add_argument(
         "--gamma",
         type=float,
-        default=0.99,
-        help="Discount factor (default: 0.99)",
+        default=tr.gamma,
+        help=f"Discount factor (default: {tr.gamma})",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=64,
-        help="Training batch size (default: 64)",
+        default=tr.batch_size,
+        help=f"Training batch size (default: {tr.batch_size})",
+    )
+    parser.add_argument(
+        "--death-threshold",
+        type=float,
+        default=env.death_threshold,
+        help=f"Fraction of dead nodes ending an episode (default: {env.death_threshold})",
+    )
+    parser.add_argument(
+        "--max-steps",
+        type=int,
+        default=env.max_steps,
+        help=f"Max steps per episode (default: {env.max_steps})",
     )
     parser.add_argument(
         "--seed",
         type=int,
-        default=42,
-        help="Random seed (default: 42)",
+        default=env.seed,
+        help=f"Random seed (default: {env.seed})",
     )
     parser.add_argument(
         "--model-type",
@@ -76,102 +87,45 @@ def parse_args():
         choices=["dqn", "ddqn"],
         help="Agent type: dqn or ddqn (default: ddqn)",
     )
-    parser.add_argument(
-        "--eval-episodes",
-        type=int,
-        default=10,
-        help="Number of evaluation episodes after training (default: 10)",
-    )
-
     return parser.parse_args()
 
 
 def main():
-    """Main training script."""
-    args = parse_args()
-
+    args = _parse_args()
     config = get_config()
     config.paths.create_all()
 
-    logger.info(
-        f"Training {args.model_type.upper()}: episodes={args.episodes}, "
-        f"nodes={args.nodes}, lr={args.lr}, gamma={args.gamma}, "
-        f"batch_size={args.batch_size}, seed={args.seed}"
-    )
-
-    env = WSNEnv(
-        N=args.nodes,
-        arena_size=tuple(config.environment.arena_size),
-        sink=tuple(config.environment.sink_position),
-        max_steps=config.environment.max_steps,
-        death_threshold=config.environment.death_threshold,
-        seed=args.seed,
-        reward_weights=(
-            config.environment.reward_weights.coverage,
-            config.environment.reward_weights.energy,
-            config.environment.reward_weights.soh,
-            config.environment.reward_weights.balance,
-        ),
-        charging_enabled=config.environment.charging.enabled,
-        charging_rate=config.environment.charging.rate,
-        charging_threshold=config.environment.charging.threshold,
-        wake_cooperation_soc=config.environment.wake_cooperation.low_battery_soc,
-        sensing_radius=config.environment.sensing_radius,
-    )
-
-    if env.observation_space.shape is None:
-        raise ValueError("env.observation_space.shape is None — cannot determine state dimension")
-    state_dim = env.observation_space.shape[0]
-    agent_class = DDQNAgent if args.model_type == "ddqn" else DQNAgent
-    agent = agent_class(
-        state_dim=state_dim,
-        action_dim=2,
-        node_count=args.nodes,
-        lr=args.lr,
-        gamma=args.gamma,
-        batch_size=args.batch_size,
-    )
-    logger.info(f"Initialized {agent_class.__name__} (state_dim={state_dim})")
-
-    trainer = Trainer(agent, env, logger_obj=logger, seed=args.seed)
-    train_rewards, train_metrics = trainer.train(episodes=args.episodes)
-
-    mean_reward = sum(train_rewards) / len(train_rewards)
-    logger.info(f"Training complete — mean: {mean_reward:.2f}, max: {max(train_rewards):.2f}")
-
-    model_path = Path(config.paths.models) / f"trained_model_{args.model_type}.pth"
-    trainer.save_checkpoint(str(model_path))
-
-    eval_rewards, eval_metrics = trainer.evaluate(episodes=args.eval_episodes)
-    eval_mean = sum(eval_rewards) / len(eval_rewards)
-    logger.info(f"Evaluation complete — mean: {eval_mean:.2f}")
-
-    metrics_data = {
-        "training": {"rewards": train_rewards, "metrics": train_metrics},
-        "evaluation": {"rewards": eval_rewards, "metrics": eval_metrics},
-        "config": {
-            "episodes": args.episodes,
-            "nodes": args.nodes,
-            "lr": args.lr,
-            "gamma": args.gamma,
-            "batch_size": args.batch_size,
-            "model_type": args.model_type,
-            "seed": args.seed,
-        },
+    params = {
+        "episodes": args.episodes,
+        "nodes": args.nodes,            # None → resolved inside run_training
+        "learning_rate": args.lr,
+        "gamma": args.gamma,
+        "batch_size": args.batch_size,
+        "death_threshold": args.death_threshold,
+        "max_steps": args.max_steps,
+        "seed": args.seed,
+        "model_type": args.model_type,
     }
 
-    metrics_path = Path(config.paths.metrics) / f"training_metrics_{args.model_type}.json"
-    save_metrics_json(metrics_data, str(metrics_path))
+    logger.info(
+        f"Training {args.model_type.upper()}: episodes={args.episodes}, "
+        f"nodes={args.nodes or config.environment.num_nodes}, lr={args.lr}, "
+        f"gamma={args.gamma}, batch_size={args.batch_size}, seed={args.seed}"
+    )
 
-    plot_path = Path(config.paths.visualizations) / f"{args.model_type}_training_curve.png"
-    plot_training_dashboard(train_rewards, series=trainer.episode_series,
-                            output_path=str(plot_path))
+    result = run_training(params, config)
 
-    logger.info(f"Metrics → {metrics_path}")
-    logger.info(f"Plot    → {plot_path}")
-    logger.info(f"Model   → {model_path}")
+    m = result.get("metrics", {})
+    print(f"\nTraining complete — {result.get('model_used', args.model_type).upper()}")
+    print(f"  Run ID:           {result['run_id']}")
+    print(f"  Mean reward:      {m.get('mean_reward', 0):.4f}")
+    print(f"  Final coverage:   {m.get('final_coverage', 0):.4f}")
+    print(f"  Final avg SoH:    {m.get('final_avg_soh', 0):.4f}")
+    print(f"  Network lifetime: {m.get('network_lifetime', '?')} episodes")
+    print(f"  Plot:             {result['image_url']}")
+    print(f"  Model:            {result['model_path']}")
 
-    return metrics_data
+    return result
 
 
 if __name__ == "__main__":

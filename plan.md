@@ -298,7 +298,7 @@ two runs and produces a combined plot.
 
 ---
 
-### Phase 5 — Scripts & Post-Training Comparison
+### Phase 5 — Scripts & Post-Training Comparison ✅ COMPLETE
 
 **Goal:** a clean CLI path and an automated DDQN-vs-DQN comparison report.
 
