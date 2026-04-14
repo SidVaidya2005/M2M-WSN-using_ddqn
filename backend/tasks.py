@@ -20,7 +20,7 @@ from src.agents.dqn_agent import DQNAgent
 from src.envs.wsn_env import WSNEnv
 from src.training.trainer import Trainer
 from src.utils.logger import get_logger
-from src.utils.visualization import plot_training_curve
+from src.utils.visualization import plot_training_dashboard
 
 logger = get_logger(__name__)
 
@@ -102,36 +102,55 @@ def run_training(params: dict, config) -> Dict[str, Any]:
     model_path = Path(config.paths.models) / f"{run_id}_model.pth"
     trainer.save_checkpoint(str(model_path))
 
+    # ── Build series from trainer ─────────────────────────────────────────
+    ep_series = trainer.episode_series  # populated during train()
+
     plot_filename = f"{run_id}_plot.png"
     plot_path = Path(config.paths.visualizations) / plot_filename
-    plot_training_curve(rewards, output_path=str(plot_path))
+    plot_training_dashboard(rewards, series=ep_series, output_path=str(plot_path))
+    image_url = f"/api/visualizations/{plot_filename}"
 
+    # ── Scalar summary metrics ────────────────────────────────────────────
     mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
     max_reward = float(max(rewards)) if rewards else 0.0
     best_episode = (int(rewards.index(max(rewards))) + 1) if rewards else 0
     trailing = min(10, len(rewards))
     avg_final_10 = float(sum(rewards[-trailing:]) / trailing) if rewards else 0.0
-    image_url = f"/api/visualizations/{plot_filename}"
 
+    coverage_series = ep_series.get("coverage", [])
+    soh_series = ep_series.get("avg_soh", [])
+    final_coverage = float(coverage_series[-1]) if coverage_series else 0.0
+    final_avg_soh = float(soh_series[-1]) if soh_series else 0.0
+    network_lifetime = trainer.network_lifetime
+
+    # ── New metadata schema (Phase 3) ────────────────────────────────────
     metadata = {
+        # Top-level fields match user spec exactly
         "run_id": run_id,
         "timestamp": datetime.datetime.now().isoformat(),
-        "config": {
-            "model_type": model_type,
-            "episodes": episodes,
-            "nodes": nodes,
-            "learning_rate": lr,
-            "gamma": gamma,
-            "batch_size": batch_size,
-            "death_threshold": death_threshold,
-            "max_steps": max_steps,
-            "seed": seed,
-        },
+        "model_used": model_type,
+        "episodes": episodes,
+        "num_nodes": nodes,
+        "learning_rate": lr,
+        "gamma": gamma,
+        "death_threshold": death_threshold,
+        "max": max_steps,          # user spec uses "max" not "max_steps"
+        "seed": seed,
         "metrics": {
             "mean_reward": mean_reward,
             "max_reward": max_reward,
             "best_episode": best_episode,
             "avg_final_10": avg_final_10,
+            "final_coverage": final_coverage,
+            "final_avg_soh": final_avg_soh,
+            "network_lifetime": network_lifetime,
+        },
+        "series": {
+            "episode_reward": [float(r) for r in rewards],
+            "coverage": [float(v) for v in coverage_series],
+            "avg_soh": [float(v) for v in soh_series],
+            "alive_fraction": [float(v) for v in ep_series.get("alive_fraction", [])],
+            "mean_soc": [float(v) for v in ep_series.get("mean_soc", [])],
         },
         "image_url": image_url,
         "model_path": str(model_path),
@@ -144,11 +163,17 @@ def run_training(params: dict, config) -> Dict[str, Any]:
         "status": "success",
         "message": f"Training completed with {model_type.upper()}.",
         "run_id": run_id,
-        "episodes": episodes,
-        "nodes": nodes,
+        # New top-level fields
+        "model_used": model_type,
+        "num_nodes": nodes,
+        # Backward-compat aliases for the frontend (Phase 4 will clean these up)
         "model_type": model_type,
+        "nodes": nodes,
+        "episodes": episodes,
         "mean_reward": mean_reward,
         "max_reward": max_reward,
+        "metrics": metadata["metrics"],
+        "series": metadata["series"],
         "results": {
             "best_lifetime": max_reward,
             "best_episode": best_episode,

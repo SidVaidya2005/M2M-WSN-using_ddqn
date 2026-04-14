@@ -22,7 +22,7 @@ from src.agents.dqn_agent import DQNAgent
 from src.envs.wsn_env import WSNEnv
 from src.training.trainer import Trainer
 from src.utils.logger import get_logger
-from src.utils.visualization import save_metrics_json, plot_training_curve
+from src.utils.visualization import save_metrics_json, plot_training_dashboard
 
 logger = get_logger(__name__)
 
@@ -164,7 +164,8 @@ def main():
     save_metrics_json(metrics_data, str(metrics_path))
 
     plot_path = Path(config.paths.visualizations) / f"{args.model_type}_training_curve.png"
-    plot_training_curve(train_rewards, output_path=str(plot_path))
+    plot_training_dashboard(train_rewards, series=trainer.episode_series,
+                            output_path=str(plot_path))
 
     logger.info(f"Metrics → {metrics_path}")
     logger.info(f"Plot    → {plot_path}")

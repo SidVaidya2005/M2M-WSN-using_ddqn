@@ -204,7 +204,7 @@ scripts/train.py` returns clean.
 
 ---
 
-### Phase 3 — Training Output Contract (JSON + 4-Panel Visualization)
+### Phase 3 — Training Output Contract (JSON + 4-Panel Visualization) ✅ COMPLETE
 
 **Goal:** training produces the exact JSON and the exact plot the user asked for.
 
