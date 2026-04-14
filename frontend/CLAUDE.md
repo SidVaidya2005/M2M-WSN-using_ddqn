@@ -16,28 +16,38 @@ frontend/
 
 **No build step.** Tailwind CSS is loaded from CDN (`cdn.tailwindcss.com`). DOMPurify is also CDN-loaded. There is no `package.json`, no bundler, and no transpilation — `app.js` is served as-is.
 
-## Key Patterns in `app.js`
+## UI Layout — Three-Tab Right Panel
 
-**`gatherPayload()`** — single source of truth for the POST `/api/train` request body. All form field → API key mappings live here. Note: `death_threshold` is displayed as a percentage (0–100) but sent as a ratio (`/100.0`).
+The right panel has **three tabs**, toggled by `switchTab(tab)`:
 
-**`applyResult(data)`** — populates the metric cards after a successful training response. Reads `data.results.best_lifetime`, `data.results.best_episode`, `data.results.avg_lifetime_final_10`.
+| Tab id | Panel id | Purpose |
+|--------|----------|---------|
+| `current` | `panelCurrent` | Result image, metrics grid, training status for the most recent run |
+| `history` | `panelHistory` | Rendered from `GET /api/history`; one card per run, newest first |
+| `compare` | `panelCompare` | DDQN-vs-DQN comparison — pick Run A and Run B, generate a side-by-side plot |
 
-**`switchTab(tab)`** — toggles between the `panelCurrent` and `panelHistory` divs. Calling `switchTab("history")` always triggers a fresh `fetchHistory()` call to `/api/history`.
+`switchTab("history")` triggers `fetchHistory()`. `switchTab("compare")` triggers `loadCompareRuns()`, which fills the two `<select>` elements (`compareRunA` / `compareRunB`) from the `_historyCache`.
 
-**`_benchmarkTasks` Map** — tracks in-flight `POST /api/evaluate` jobs. Key is `run_id`, value is `{ taskId, sectionEl }`. The polling loop updates the DOM directly via `sectionEl`.
+## Key Functions in `app.js`
 
-**`data-config-mirror` attribute** — any element with this attribute and a matching `data-config-mirror="<key>"` will have its text content synced to the corresponding payload key on every form `input`/`change` event via `syncConfigDisplay()`.
+**`gatherPayload()`** — single source of truth for the `POST /api/train` request body. All form field → API key mappings live here. Note: `death_threshold` is displayed as a percentage (0–100) but sent as a ratio (`/100.0`).
 
-## UI Layout
+**`applyResult(data)`** — populates the metric KPI cards after a successful training response. Reads from the Phase 3 schema: `data.metrics.{final_coverage, final_avg_soh, network_lifetime, mean_reward}` and `data.image_url`. Coverage and SoH render as percentages; network lifetime as an integer episode count; mean reward to two decimals. Missing values render as `—`.
 
-Two-tab right panel:
-- **Current** (`panelCurrent`) — result image, metrics grid, training status
-- **History** (`panelHistory`) — rendered from `GET /api/history`; each run card has a "Run Benchmark" button that calls `POST /api/evaluate` and polls for results
+**`switchTab(tab)`** — see table above.
 
-History cards are built entirely in JS via `buildHistoryCard()` / `buildSection()` / `buildKVRow()`. The benchmark comparison table is built by `buildBenchmarkTable()`, which sorts trained model first, then baselines by descending mean reward.
+**`normalizeRun(run)`** — smooths over the old/new metadata schema. Pulls `model_used`, `num_nodes`, `episodes`, etc. from top-level Phase-3 fields first, falling back to `run.config.*` for pre-Phase-3 runs. Use this whenever rendering a history row.
+
+**`loadCompareRuns()` / `runComparison()`** — compare tab flow. `runComparison()` hits `GET /api/compare?a=<id>&b=<id>`, reads `data.image_url`, and swaps `compareImage.src` with a `?t=` cache-buster. Rejects identical or missing run IDs client-side before fetching.
+
+**`data-config-mirror` attribute** — any element with `data-config-mirror="<key>"` has its text content synced to the corresponding payload key on every form `input`/`change` event via `syncConfigDisplay()`.
+
+History cards are built entirely in JS via `buildHistoryCard()` / `buildSection()` / `buildKVRow()`. There is **no baseline benchmark table** and no per-card "Run Benchmark" button — baseline evaluation was removed in Phase 0, so the UI exposes only training + compare.
 
 ## Gotchas
 
 - **DOMPurify is required** for any HTML rendered from API responses. The history panel uses `innerHTML` assignments — always sanitize with `DOMPurify.sanitize()` before setting.
 - **Tailwind config is inline** in `index.html` (the `tailwind.config = { ... }` block). Custom semantic color tokens (e.g., `bg-surface`, `text-on-surface`) are defined there — not in `style.css`.
-- **`resultImage.src` cache-busting** — the image URL gets `?t=Date.now()` appended on every new result to force the browser to re-fetch the same filename.
+- **Image cache-busting** — `resultImage.src` and `compareImage.src` get `?t=Date.now()` appended on every new result to force the browser to re-fetch when the filename hasn't changed.
+- **Field-name schema drift** — always read run data through `normalizeRun()` so old runs (which nest fields under `config`) render the same as Phase-3 runs.
+- **No `/api/evaluate` calls.** If you see code referencing `/api/evaluate`, `_benchmarkTasks`, or `buildBenchmarkTable`, it is dead code from a prior iteration and should be removed.

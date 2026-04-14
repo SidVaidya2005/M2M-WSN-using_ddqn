@@ -1,10 +1,14 @@
 """API routes for WSN DDQN training platform."""
 
 import json
+from pathlib import Path
 
 from flask import Blueprint, request, jsonify, current_app, send_from_directory
 from marshmallow import ValidationError
-from pathlib import Path
+
+from src.utils.logger import get_logger
+from .schemas import TrainingRequestSchema
+from .tasks import run_training, submit_training_task, get_task, compare_runs
 
 
 def _project_root() -> Path:
@@ -19,17 +23,17 @@ def _abs(relative_path: str) -> Path:
 
 
 def _apply_config_defaults(run: dict, config) -> None:
-    """Fill null config fields in a run dict with current config defaults.
+    """Fill null fields in a legacy-schema ``run["config"]`` dict from project defaults.
 
-    Runs migrated from legacy artifacts may have null for all hyperparameters.
-    Rather than showing 'N/A', we substitute the project defaults so the
-    History cards look complete.  Metrics remain null when genuinely unknown.
+    Pre-Phase-3 metadata files nested hyperparameters under a ``config`` sub-object
+    and may have null values; we substitute current defaults so the History cards
+    don't show 'N/A' for known-defaultable fields.
     """
     cfg = run.get("config")
     if not isinstance(cfg, dict):
         return
     env = config.environment
-    tr  = config.training
+    tr = config.training
     defaults = {
         "nodes":           env.num_nodes,
         "learning_rate":   tr.learning_rate,
@@ -43,9 +47,18 @@ def _apply_config_defaults(run: dict, config) -> None:
         if cfg.get(key) is None:
             cfg[key] = val
 
-from src.utils.logger import get_logger
-from .schemas import TrainingRequestSchema
-from .tasks import run_training, submit_training_task, get_task, compare_runs
+
+def _serve_from(config_attr: str, filename: str):
+    """Send a file from the directory at ``config.paths.<config_attr>``."""
+    config = current_app.config.get("CONFIG")
+    if not config:
+        return jsonify({"error": "Configuration not loaded"}), 500
+    directory = _abs(getattr(config.paths, config_attr))
+    try:
+        return send_from_directory(directory, filename)
+    except Exception as exc:
+        logger.error(f"Failed to serve {config_attr}/{filename}: {exc}")
+        return jsonify({"error": "File not found"}), 404
 
 api_bp = Blueprint("api", __name__)
 logger = get_logger(__name__)
@@ -168,7 +181,9 @@ def get_history():
         try:
             with open(meta_file) as f:
                 run = json.load(f)
-            # Fill null config fields with project defaults
+            # Series can be hundreds of KB per run and is unused by the history UI;
+            # /api/compare reads metadata files directly when it needs them.
+            run.pop("series", None)
             _apply_config_defaults(run, config)
             runs.append(run)
         except Exception as exc:
@@ -213,24 +228,10 @@ def compare_runs_endpoint():
 @api_bp.route("/results/<path:filename>", methods=["GET"])
 def serve_results(filename):
     """Serve metrics JSON files."""
-    config = current_app.config.get("CONFIG")
-    if not config:
-        return jsonify({"error": "Configuration not loaded"}), 500
-    try:
-        return send_from_directory(_abs(config.paths.metrics), filename)
-    except Exception as exc:
-        logger.error(f"Failed to serve results/{filename}: {exc}")
-        return jsonify({"error": "File not found"}), 404
+    return _serve_from("metrics", filename)
 
 
 @api_bp.route("/visualizations/<path:filename>", methods=["GET"])
 def serve_visualizations(filename):
     """Serve visualization plots."""
-    config = current_app.config.get("CONFIG")
-    if not config:
-        return jsonify({"error": "Configuration not loaded"}), 500
-    try:
-        return send_from_directory(_abs(config.paths.visualizations), filename)
-    except Exception as exc:
-        logger.error(f"Failed to serve visualizations/{filename}: {exc}")
-        return jsonify({"error": "File not found"}), 404
+    return _serve_from("visualizations", filename)

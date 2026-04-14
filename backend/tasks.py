@@ -1,11 +1,8 @@
-"""Background task execution for training jobs.
+"""Training execution engine.
 
-Provides a thread-based task queue for running training jobs asynchronously.
-Each job is assigned a UUID task_id that can be polled via GET /api/tasks/<task_id>.
-
-The /api/train endpoint currently runs synchronously (for frontend compatibility).
-To switch to full async: call submit_training_task() and return the task_id immediately,
-then let the client poll /api/tasks/<task_id> for status.
+``run_training`` runs synchronously and is wrapped by ``submit_training_task``
+to provide a UUID-keyed background-thread queue polled via
+``GET /api/tasks/<task_id>``. ``compare_runs`` produces the DDQN-vs-DQN plot.
 """
 
 import datetime
@@ -24,7 +21,6 @@ from src.utils.visualization import plot_training_dashboard, plot_comparison_das
 
 logger = get_logger(__name__)
 
-# In-memory task registry: {task_id -> {status, result, error}}
 _tasks: Dict[str, Dict[str, Any]] = {}
 _tasks_lock = threading.Lock()
 
@@ -97,20 +93,18 @@ def run_training(params: dict, config) -> Dict[str, Any]:
     )
 
     trainer = Trainer(agent, env, seed=seed)
-    rewards, _ = trainer.train(episodes=episodes)
+    rewards = trainer.train(episodes=episodes)
 
     model_path = Path(config.paths.models) / f"{run_id}_model.pth"
     trainer.save_checkpoint(str(model_path))
 
-    # ── Build series from trainer ─────────────────────────────────────────
-    ep_series = trainer.episode_series  # populated during train()
+    ep_series = trainer.episode_series
 
     plot_filename = f"{run_id}_plot.png"
     plot_path = Path(config.paths.visualizations) / plot_filename
     plot_training_dashboard(rewards, series=ep_series, output_path=str(plot_path))
     image_url = f"/api/visualizations/{plot_filename}"
 
-    # ── Scalar summary metrics ────────────────────────────────────────────
     mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
     max_reward = float(max(rewards)) if rewards else 0.0
     best_episode = (int(rewards.index(max(rewards))) + 1) if rewards else 0
@@ -123,9 +117,7 @@ def run_training(params: dict, config) -> Dict[str, Any]:
     final_avg_soh = float(soh_series[-1]) if soh_series else 0.0
     network_lifetime = trainer.network_lifetime
 
-    # ── New metadata schema (Phase 3) ────────────────────────────────────
     metadata = {
-        # Top-level fields match user spec exactly
         "run_id": run_id,
         "timestamp": datetime.datetime.now().isoformat(),
         "model_used": model_type,
@@ -134,7 +126,7 @@ def run_training(params: dict, config) -> Dict[str, Any]:
         "learning_rate": lr,
         "gamma": gamma,
         "death_threshold": death_threshold,
-        "max": max_steps,          # user spec uses "max" not "max_steps"
+        "max": max_steps,
         "seed": seed,
         "metrics": {
             "mean_reward": mean_reward,
@@ -164,22 +156,11 @@ def run_training(params: dict, config) -> Dict[str, Any]:
         "status": "success",
         "message": f"Training completed with {model_type.upper()}.",
         "run_id": run_id,
-        # New top-level fields
         "model_used": model_type,
         "num_nodes": nodes,
-        # Backward-compat aliases for the frontend (Phase 4 will clean these up)
-        "model_type": model_type,
-        "nodes": nodes,
         "episodes": episodes,
         "mean_reward": mean_reward,
-        "max_reward": max_reward,
         "metrics": metadata["metrics"],
-        "series": metadata["series"],
-        "results": {
-            "best_lifetime": max_reward,
-            "best_episode": best_episode,
-            "avg_lifetime_final_10": avg_final_10,
-        },
         "model_path": str(model_path),
         "image_url": image_url,
     }

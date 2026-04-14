@@ -22,11 +22,11 @@ class WSNEnv(gym.Env):
 
     Action: per-node binary (0=SLEEP, 1=AWAKE) — MultiDiscrete of length N.
 
-    M2M behaviours (Phase 2):
+    M2M behaviours:
       - Charging: nodes below charging_threshold are forced SLEEP and recover SoC.
       - Cooperative wake-up: an AWAKE node whose SoC drops to ≤ wake_cooperation_soc
         causes its nearest non-charging SLEEP neighbour to be forcibly woken.
-      - Proper grid-based coverage metric (sensing_radius).
+      - Grid-based coverage metric (sensing_radius).
     """
 
     metadata = {"render.modes": ["human"]}
@@ -44,7 +44,6 @@ class WSNEnv(gym.Env):
         max_steps: int = 10000,
         seed: Optional[int] = None,
         death_threshold: float = 0.3,
-        # M2M / Phase-2 parameters (defaults match config.yaml)
         reward_weights: Tuple[float, float, float, float] = (10.0, 5.0, 1.0, 2.0),
         charging_enabled: bool = True,
         charging_rate: float = 0.05,
@@ -81,7 +80,6 @@ class WSNEnv(gym.Env):
         self.rng = np.random.RandomState(seed)
         self.death_threshold = death_threshold
 
-        # M2M params
         self.reward_weights = reward_weights
         self.charging_enabled = charging_enabled
         self.charging_rate = charging_rate
@@ -89,32 +87,23 @@ class WSNEnv(gym.Env):
         self.wake_cooperation_soc = wake_cooperation_soc
         self.sensing_radius = sensing_radius
 
-        # Node positions (initialised in reset, seeded now for reproducibility)
-        self.positions = self.rng.rand(N, 2) * np.array(arena_size)
-        dists = np.linalg.norm(self.positions - self.sink, axis=1)
-        self.dist_norm = dists / np.sqrt(arena_size[0] ** 2 + arena_size[1] ** 2)
-
-        # Batteries
-        self.batteries = [
-            BatteryModel(E_max=100.0, soh_init=1.0, k_cycle=5e-5, alpha=1.2, calendar_decay=5e-7)
-            for _ in range(N)
-        ]
-
-        # Per-node running state
+        self.positions: np.ndarray = np.zeros((N, 2), dtype=float)
+        self.dist_norm: np.ndarray = np.zeros(N, dtype=float)
+        self.batteries: List[BatteryModel] = []
         self.last_action = np.zeros(N, dtype=int)
         self.recent_activity = np.zeros(N, dtype=float)
 
-        # Precompute grid sample points for coverage calculation
         gx = np.linspace(0, arena_size[0], self._GRID_RES)
         gy = np.linspace(0, arena_size[1], self._GRID_RES)
         grid_x, grid_y = np.meshgrid(gx, gy)
-        self.grid_points = np.stack([grid_x.ravel(), grid_y.ravel()], axis=1)  # (400, 2)
+        self.grid_points = np.stack([grid_x.ravel(), grid_y.ravel()], axis=1)
 
-        # Observation & action spaces — 6 features per node
         self.observation_space = spaces.Box(
             low=0.0, high=1.0, shape=(N * 6,), dtype=np.float32
         )
         self.action_space = spaces.MultiDiscrete([2] * N)
+
+        self.reset()
 
     # ------------------------------------------------------------------
     # Gymnasium API
@@ -154,7 +143,6 @@ class WSNEnv(gym.Env):
 
         effective_action = np.array(action, dtype=int)
 
-        # ── 1. Charging override ──────────────────────────────────────────
         charging_set: set = set()
         if self.charging_enabled:
             for i, batt in enumerate(self.batteries):
@@ -162,19 +150,16 @@ class WSNEnv(gym.Env):
                     batt.charging = False
                     continue
                 soc_frac = batt.soc / batt.E_max
-                # Exit charging when SoC reaches 95 %
                 if batt.charging and soc_frac >= 0.95:
                     batt.charging = False
-                # Enter charging when SoC drops below threshold
                 elif not batt.charging and batt.needs_charge(self.charging_threshold):
                     batt.charging = True
 
                 if batt.charging:
-                    effective_action[i] = 0  # forced SLEEP
+                    effective_action[i] = 0
                     batt.charge(self.charging_rate)
                     charging_set.add(i)
 
-        # ── 2. Cooperative wake-up ────────────────────────────────────────
         cooperative_wakes: List[int] = []
         woken_set: set = set()
         for i, batt in enumerate(self.batteries):
@@ -183,7 +168,6 @@ class WSNEnv(gym.Env):
             soc_frac = batt.soc / batt.E_max
             if soc_frac > self.wake_cooperation_soc:
                 continue
-            # Find nearest non-charging, non-dead, SLEEP neighbour
             best_j, best_dist = -1, float("inf")
             for j in range(self.N):
                 if (
@@ -201,20 +185,18 @@ class WSNEnv(gym.Env):
                 woken_set.add(best_j)
                 cooperative_wakes.append(best_j)
 
-        # ── 3. Physics: energy draw for non-charging nodes ────────────────
         per_node_energy = np.zeros(self.N, dtype=np.float32)
         for i, batt in enumerate(self.batteries):
             if i in charging_set:
-                # Charger already handled SoC; no discharge call
                 self.recent_activity[i] = 0.9 * self.recent_activity[i]
                 self.last_action[i] = 0
                 continue
-            if effective_action[i] == 1:  # AWAKE
+            if effective_action[i] == 1:
                 energy_draw = self.timestep_energy_awake * (1.0 + 0.1 * self.dist_norm[i])
                 batt.discharge(energy_draw)
                 self.recent_activity[i] = 0.9 * self.recent_activity[i] + 0.1
                 per_node_energy[i] = energy_draw
-            else:  # SLEEP
+            else:
                 batt.discharge(self.energy_sleep)
                 self.recent_activity[i] = 0.9 * self.recent_activity[i]
                 per_node_energy[i] = self.energy_sleep
@@ -222,7 +204,6 @@ class WSNEnv(gym.Env):
 
         total_energy_used = float(per_node_energy.sum())
 
-        # ── 4. Derived statistics ─────────────────────────────────────────
         soc_fracs = np.array([b.soc / b.E_max for b in self.batteries], dtype=np.float32)
         avg_soh = float(np.mean([b.soh for b in self.batteries]))
         dead_count = sum(1 for b in self.batteries if b.is_dead())
@@ -230,7 +211,6 @@ class WSNEnv(gym.Env):
         mean_soc = float(np.mean(soc_fracs))
         coverage = self._compute_coverage(effective_action)
 
-        # ── 5. Reward ─────────────────────────────────────────────────────
         w_cov, w_eng, w_soh, w_bal = self.reward_weights
 
         r_coverage = float(np.clip(coverage, 0.0, 1.0))
@@ -252,7 +232,6 @@ class WSNEnv(gym.Env):
             + w_bal * r_balance
         )
 
-        # ── 6. Terminal condition ─────────────────────────────────────────
         done = False
         if dead_count > self.death_threshold * self.N:
             done = True
@@ -263,11 +242,9 @@ class WSNEnv(gym.Env):
         info: Dict[str, Any] = {
             "total_energy": total_energy_used,
             "coverage": coverage,
-            "coverage_ratio": coverage,        # backward-compat alias
             "avg_soh": avg_soh,
             "alive_fraction": alive_fraction,
             "dead_count": dead_count,
-            "dead_nodes": dead_count,           # backward-compat alias
             "mean_soc": mean_soc,
             "cooperative_wakes": cooperative_wakes,
             "charging_count": len(charging_set),
@@ -292,12 +269,12 @@ class WSNEnv(gym.Env):
         for i in range(self.N):
             batt = self.batteries[i]
             obs.extend([
-                batt.soc / batt.E_max,          # 0: SoC normalised
-                batt.soh,                        # 1: SoH
-                float(self.last_action[i]),      # 2: last action
-                self.dist_norm[i],               # 3: distance to sink (norm)
-                self.recent_activity[i],         # 4: activity EMA
-                float(batt.charging),            # 5: charging flag (NEW)
+                batt.soc / batt.E_max,
+                batt.soh,
+                float(self.last_action[i]),
+                self.dist_norm[i],
+                self.recent_activity[i],
+                float(batt.charging),
             ])
         return np.array(obs, dtype=np.float32)
 

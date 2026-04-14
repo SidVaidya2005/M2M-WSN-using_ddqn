@@ -1,9 +1,25 @@
-// ── DOM references ──────────────────────────────────────────────────────────
 const trainingForm     = document.getElementById("trainingForm");
 const resultImage      = document.getElementById("resultImage");
 const imagePlaceholder = document.getElementById("imagePlaceholder");
 
-// ── Config sync ──────────────────────────────────────────────────────────────
+function fmt(val, decimals = 2) {
+  if (val === null || val === undefined) return "—";
+  const n = Number(val);
+  return Number.isFinite(n) ? n.toFixed(decimals) : "—";
+}
+
+function fmtPct(val) {
+  if (val === null || val === undefined) return "—";
+  const n = Number(val);
+  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : "—";
+}
+
+function fmtInt(val) {
+  if (val === null || val === undefined) return "—";
+  const n = Number(val);
+  return Number.isFinite(n) ? String(Math.round(n)) : "—";
+}
+
 function syncConfigDisplay() {
   const cfg = gatherPayload();
   document.querySelectorAll("[data-config-mirror]").forEach((el) => {
@@ -13,8 +29,6 @@ function syncConfigDisplay() {
 }
 trainingForm.addEventListener("input",  syncConfigDisplay);
 trainingForm.addEventListener("change", syncConfigDisplay);
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function showResultImageIfAvailable() {
   if (!resultImage || !imagePlaceholder || !resultImage.getAttribute("src")) return;
@@ -40,47 +54,27 @@ function gatherPayload() {
   };
 }
 
-/**
- * Populate the metrics KPI grid after a successful training run.
- * Reads from the new schema: data.metrics.{final_coverage, final_avg_soh,
- * network_lifetime, mean_reward}. Falls back to top-level keys for
- * backward-compat with any older response shape.
- */
 function applyResult(data) {
   const metricsGrid = document.getElementById("metricsGrid");
   const met = data.metrics ?? {};
 
-  const finalCoverage     = met.final_coverage     ?? null;
-  const finalAvgSoH       = met.final_avg_soh       ?? null;
-  const networkLifetime   = met.network_lifetime    ?? null;
-  const meanReward        = met.mean_reward         ?? data.mean_reward ?? null;
-
   if (data.image_url) {
     resultImage.src = `${data.image_url}?t=${Date.now()}`;
-    resultImage.onload = () => {
+    resultImage.addEventListener("load", () => {
       imagePlaceholder.style.display = "none";
       resultImage.style.display = "block";
-    };
+    }, { once: true });
   } else {
     showResultImageIfAvailable();
   }
 
-  const fmtPct   = (v) => (v !== null && Number.isFinite(Number(v)))
-    ? `${(Number(v) * 100).toFixed(1)}%` : "—";
-  const fmtNum   = (v) => (v !== null && Number.isFinite(Number(v)))
-    ? Number(v).toFixed(2) : "—";
-  const fmtInt   = (v) => (v !== null && Number.isFinite(Number(v)))
-    ? String(Math.round(Number(v))) : "—";
-
-  document.getElementById("valFinalCoverage").textContent   = fmtPct(finalCoverage);
-  document.getElementById("valAvgSoH").textContent          = fmtPct(finalAvgSoH);
-  document.getElementById("valNetworkLifetime").textContent = fmtInt(networkLifetime);
-  document.getElementById("valMeanReward").textContent      = fmtNum(meanReward);
+  document.getElementById("valFinalCoverage").textContent   = fmtPct(met.final_coverage);
+  document.getElementById("valAvgSoH").textContent          = fmtPct(met.final_avg_soh);
+  document.getElementById("valNetworkLifetime").textContent = fmtInt(met.network_lifetime);
+  document.getElementById("valMeanReward").textContent      = fmt(met.mean_reward ?? data.mean_reward);
 
   metricsGrid.style.display = "grid";
 }
-
-// ── Tab switching ────────────────────────────────────────────────────────────
 
 function switchTab(tab) {
   const panels = { current: "panelCurrent", history: "panelHistory", compare: "panelCompare" };
@@ -100,20 +94,6 @@ function switchTab(tab) {
 
   if (tab === "history") fetchHistory();
   if (tab === "compare") loadCompareRuns();
-}
-
-// ── History: shared helpers ──────────────────────────────────────────────────
-
-function fmt(val, decimals = 2) {
-  if (val === null || val === undefined) return "N/A";
-  const n = Number(val);
-  return Number.isFinite(n) ? n.toFixed(decimals) : "N/A";
-}
-
-function fmtPct(val) {
-  if (val === null || val === undefined) return "N/A";
-  const n = Number(val);
-  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : "N/A";
 }
 
 function formatTimestamp(isoString) {
@@ -209,9 +189,9 @@ function buildHistoryCard(run) {
   const body = document.createElement("div");
   body.className = "p-5 grid grid-cols-1 md:grid-cols-3 gap-5";
 
-  const cfgVal = (v) => (v === null || v === undefined) ? "N/A" : String(v);
+  const cfgVal = (v) => (v === null || v === undefined) ? "—" : String(v);
   const deathPct = r.death_threshold != null
-    ? `${(r.death_threshold * 100).toFixed(0)}%` : "N/A";
+    ? `${(r.death_threshold * 100).toFixed(0)}%` : "—";
 
   body.appendChild(buildSection("Configuration", [
     ["Model",         r.model_used.toUpperCase()],
@@ -229,7 +209,7 @@ function buildHistoryCard(run) {
     ["Max Reward",        fmt(met.max_reward)],
     ["Final Coverage",    fmtPct(met.final_coverage)],
     ["Avg SoH",           fmtPct(met.final_avg_soh)],
-    ["Network Lifetime",  met.network_lifetime != null ? `${met.network_lifetime} ep` : "N/A"],
+    ["Network Lifetime",  met.network_lifetime != null ? `${met.network_lifetime} ep` : "—"],
     ["Best Episode",      cfgVal(met.best_episode)],
     ["Avg Last 10",       fmt(met.avg_final_10)],
   ]));
@@ -392,10 +372,10 @@ async function runComparison() {
     }
 
     compareImg.src = `${data.image_url}?t=${Date.now()}`;
-    compareImg.onload = () => {
+    compareImg.addEventListener("load", () => {
       placeholder.style.display = "none";
       compareImg.style.display  = "block";
-    };
+    }, { once: true });
 
     statusEl.textContent = "Comparison generated successfully.";
     statusEl.classList.add("status-success");
