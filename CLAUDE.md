@@ -16,7 +16,9 @@ Precise, topic-scoped rules live in `.claude/rules/`:
 | [`testing.md`](.claude/rules/testing.md) | Conftest singleton reset, fixture sizes, test patterns |
 | [`artifacts.md`](.claude/rules/artifacts.md) | Run ID format, file naming, metadata schema |
 
-Directory-level context: [`frontend/CLAUDE.md`](frontend/CLAUDE.md) · [`backend/CLAUDE.md`](backend/CLAUDE.md)
+Directory-level context: [`frontend/CLAUDE.md`](frontend/CLAUDE.md) · [`backend/CLAUDE.md`](backend/CLAUDE.md) · [`src/CLAUDE.md`](src/CLAUDE.md)
+
+**Restructure in progress:** [`plan.md`](plan.md) is the source of truth for the ongoing 6-phase restructure. Phases 0–1 (cleanup, config extraction) are complete; Phases 2–6 (env behaviors, new metadata schema, frontend rewrite, comparison tooling, tests) are pending. Check it before assuming current behavior is final — several rules files mention "configured but not yet wired" features that are intentional staging, not bugs.
 
 ---
 
@@ -40,16 +42,7 @@ cp .env.example .env
 python -m backend.app
 
 # CLI training (--model-type dqn or ddqn)
-python scripts/train_model.py --episodes 500 --nodes 50 --lr 1e-4 --gamma 0.99 --batch-size 64 --seed 42 --model-type ddqn
-
-# Evaluate against baselines
-python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth --episodes 10
-
-# Generate research report from saved metrics
-python scripts/generate_report.py
-
-# Migrate pre-run_id artifacts into the new naming scheme (safe, idempotent)
-python scripts/migrate_legacy_runs.py
+python scripts/train.py --episodes 500 --nodes 50 --lr 1e-4 --gamma 0.99 --batch-size 64 --seed 42 --model-type ddqn
 ```
 
 ### Tests
@@ -88,10 +81,6 @@ Frontend (frontend/templates/ + frontend/static/) → HTTP/JSON → backend/ (Fl
                               results/ (models, metrics JSON, PNG plots)
 ```
 
-> **Directory-level detail:**
-> - Frontend (HTML/JS/CSS): [`frontend/CLAUDE.md`](frontend/CLAUDE.md)
-> - Backend (Flask API, task execution): [`backend/CLAUDE.md`](backend/CLAUDE.md)
-
 ### Key Modules
 
 **`config/settings.py`** — Dataclass-based config with validation; use `get_config()` singleton. YAML source: `config/config.yaml`. All components import from here.
@@ -102,28 +91,27 @@ Frontend (frontend/templates/ + frontend/static/) → HTTP/JSON → backend/ (Fl
 
 **`src/training/trainer.py`** — Orchestrates the training loop. Calls `agent.select_action()` → `env.step()` → `agent.store_transition()` → `agent.learn_step()`. Logs every 10 episodes; saves `.pth` checkpoints and metrics JSON.
 
-**`src/baselines/baseline_policies.py`** — Reference policies for benchmarking: `RandomPolicy`, `GreedyPolicy`, `EnergyConservativePolicy`, `BalancedRotationPolicy` (all in one file).
+**`backend/`** — Flask REST API layer. See [`backend/CLAUDE.md`](backend/CLAUDE.md).
 
-**`backend/`** — Flask REST API with sync/async training endpoints, marshmallow validation, and in-memory task registry. See [`backend/CLAUDE.md`](backend/CLAUDE.md) for full route table and execution model.
+**`frontend/`** — Single-page UI (no build step). See [`frontend/CLAUDE.md`](frontend/CLAUDE.md).
+
+**`src/`** — Pure RL core (envs, agents, training loop). See [`src/CLAUDE.md`](src/CLAUDE.md).
 
 ### Output Artifacts
 - `results/models/run_{timestamp}_model.pth` — PyTorch policy network weights per run
 - `results/metrics/run_{timestamp}_metadata.json` — Per-run config + summary metrics
-- `results/metrics/run_{timestamp}_evaluation.json` — Baseline comparison for that run (written by `POST /api/evaluate`)
 - `results/visualizations/run_{timestamp}_plot.png` — Training progress plot
 
-Run IDs have the format `run_YYYYMMDD_HHMMSS`. Legacy `trained_model_ddqn.pth` exists for CLI scripts.
+Run IDs have the format `run_YYYYMMDD_HHMMSS`.
 
 ## Gotchas
 
-- **`WSNEnv.reset()` returns a plain `np.ndarray`**, not a `(obs, info)` tuple. Never do `state, _ = env.reset()` — it will crash with `ValueError: too many values to unpack` because the array has 2750 elements (550 nodes × 5 features). Use `state = env.reset()`.
+- **`WSNEnv` is Gymnasium-compliant** — `reset()` returns `(obs, info)`; `step()` returns 4 values `(next_state, reward, done, info)`, not 5 (no truncation flag).
 - **Scripts require project root on `sys.path`**. All scripts in `scripts/` insert the project root via `Path(__file__).resolve().parent.parent`. If adding a new script, replicate this pattern or it will fail when run from a different directory.
-- **`config.paths.*` fields are `str`, not `Path`** — always wrap with `Path()` before using `/` for joining. Artifacts use the `run_{timestamp}_*` naming scheme (see Output Artifacts above); the legacy `trained_model_ddqn.pth` exists only for CLI scripts.
-- **`POST /api/train` is synchronous** (blocks until training finishes) for frontend compatibility. Use `POST /api/train/async` for non-blocking invocation; poll `GET /api/tasks/<task_id>` for status.
+- **`config.paths.*` fields are `str`, not `Path`** — always wrap with `Path()` before using `/` for joining. Artifacts use the `run_{timestamp}_*` naming scheme (see Output Artifacts above).
 
 ## Extending the Platform
 
 - **New agent**: Subclass `BaseAgent` in `src/agents/`, implement all abstract methods
-- **New baseline**: Add policy to `src/baselines/`, register in the evaluation script
 - **New environment**: Subclass `gym.Env`, implement `step()` and `reset()`
 - **New metric**: Add computation to `src/utils/metrics.py`, call from `Trainer`
