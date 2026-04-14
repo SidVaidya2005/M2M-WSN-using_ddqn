@@ -46,9 +46,20 @@ Default for all API calls is `"ddqn"`. Use `"dqn"` only for ablation comparisons
 trainer = Trainer(agent, env, seed=42)
 rewards, metrics = trainer.train(episodes=100)      # returns (list[float], dict)
 trainer.save_checkpoint(path)                        # saves agent weights
+
+# Per-episode series (populated during train())
+trainer.episode_series   # dict of lists: episode_reward, coverage, avg_soh,
+                         #                 alive_fraction, mean_soc, step_counts
+
+# Network lifetime — episode index where alive_fraction first drops below
+# (1 - death_threshold); equals total episodes if never breached
+trainer.network_lifetime  # int
 ```
 
 **`train()` mutates agent state** (epsilon, replay buffer, network weights).
+
+`state_dim` must always be derived from the env (`env.observation_space.shape[0]`).
+With 6 features per node: `state_dim = N * 6` (e.g. 300 for N=50, 60 for tests with N=10).
 
 ## Hyperparameter Ranges
 

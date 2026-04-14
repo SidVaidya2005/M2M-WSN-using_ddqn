@@ -18,7 +18,7 @@ Precise, topic-scoped rules live in `.claude/rules/`:
 
 Directory-level context: [`frontend/CLAUDE.md`](frontend/CLAUDE.md) · [`backend/CLAUDE.md`](backend/CLAUDE.md) · [`src/CLAUDE.md`](src/CLAUDE.md)
 
-**Restructure in progress:** [`plan.md`](plan.md) is the source of truth for the ongoing 6-phase restructure. Phases 0–1 (cleanup, config extraction) are complete; Phases 2–6 (env behaviors, new metadata schema, frontend rewrite, comparison tooling, tests) are pending. Check it before assuming current behavior is final — several rules files mention "configured but not yet wired" features that are intentional staging, not bugs.
+**Restructure complete:** All 6 phases of the restructure described in [`plan.md`](plan.md) are done. The codebase is in its final state: two agents only (DDQN + DQN), 6-feature observation space, charging + cooperative wake-up in WSNEnv, Phase 3 metadata schema, updated frontend with compare tab, and CLI scripts in `scripts/`.
 
 ---
 
@@ -43,6 +43,11 @@ python -m backend.app
 
 # CLI training (--model-type dqn or ddqn)
 python scripts/train.py --episodes 500 --nodes 50 --lr 1e-4 --gamma 0.99 --batch-size 64 --seed 42 --model-type ddqn
+
+# CLI comparison (auto-picks most recent DDQN and DQN runs)
+python scripts/compare.py
+# Or specify runs explicitly:
+python scripts/compare.py --run-a run_20260414_080000 --run-b run_20260414_090000
 ```
 
 ### Tests

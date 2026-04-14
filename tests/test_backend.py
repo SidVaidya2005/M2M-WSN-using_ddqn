@@ -70,6 +70,39 @@ class TestAsyncTraining:
         assert response.status_code == 404
 
 
+class TestHistoryEndpoint:
+    def test_history_returns_200(self, flask_client):
+        response = flask_client.get("/api/history")
+        assert response.status_code == 200
+
+    def test_history_returns_list(self, flask_client):
+        data = json.loads(flask_client.get("/api/history").data)
+        assert isinstance(data, list)
+
+
+class TestCompareEndpoint:
+    def test_compare_missing_params_returns_400(self, flask_client):
+        response = flask_client.get("/api/compare")
+        assert response.status_code == 400
+
+    def test_compare_missing_b_returns_400(self, flask_client):
+        response = flask_client.get("/api/compare?a=run_20260101_000000")
+        assert response.status_code == 400
+
+    def test_compare_nonexistent_runs_returns_404(self, flask_client):
+        response = flask_client.get(
+            "/api/compare?a=run_00000000_000000&b=run_00000000_000001"
+        )
+        assert response.status_code == 404
+
+
+class TestRemovedEndpoints:
+    def test_evaluate_endpoint_not_found(self, flask_client):
+        """POST /api/evaluate was removed in Phase 0 — must not exist."""
+        response = flask_client.post("/api/evaluate", json={})
+        assert response.status_code == 404
+
+
 class TestServeIndex:
     def test_index_returns_html(self, flask_client):
         response = flask_client.get("/")

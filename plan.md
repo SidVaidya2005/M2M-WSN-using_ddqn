@@ -317,7 +317,7 @@ and `python scripts/train.py --model-type dqn --episodes 30`, then
 
 ---
 
-### Phase 6 — Tests, Docs, Final Pass
+### Phase 6 — Tests, Docs, Final Pass ✅ COMPLETE
 
 **Goal:** lock the new behavior in and document the restructure.
 

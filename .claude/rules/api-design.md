@@ -10,12 +10,11 @@
 | `POST /api/train/async` | Non-blocking — returns `task_id` immediately | Long runs, scripted calls |
 | `GET /api/tasks/<task_id>` | sync | Poll task status |
 | `GET /api/history` | sync | List all training runs (newest first) |
+| `GET /api/compare?a=<run_id>&b=<run_id>` | sync | Generate DDQN-vs-DQN comparison PNG |
 | `GET /api/results/<path>` | sync | Serve metrics JSON files |
 | `GET /api/visualizations/<path>` | sync | Serve visualization PNGs |
 
 **Removed endpoints:** `/api/evaluate` (baseline benchmarking) was removed in Phase 0.
-
-**Planned (Phase 4):** `GET /api/compare?a=<run_id>&b=<run_id>` for DDQN-vs-DQN comparison plots.
 
 For any new long-running operation: add a `submit_*_task()` function to `tasks.py` using the daemon-thread pattern, and expose both sync and async routes.
 

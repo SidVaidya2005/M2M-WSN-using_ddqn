@@ -31,14 +31,11 @@ The agent uses two neural networks (policy + target) to reduce Q-value overestim
 
 Simulates N sensor nodes, each with a battery tracked by State of Charge (SoC) and State of Health (SoH). At each step the agent decides which nodes sleep or wake. The episode ends when too many nodes die (SoC < `death_threshold`). Reward balances coverage, energy efficiency, battery health, and fairness.
 
-### Baseline Policies
+### Two-Agent Benchmarking
 
-| Policy | Strategy |
-|--------|----------|
-| Random | Random sleep/wake per node |
-| Greedy | Wake the highest (SoC × SoH) nodes |
-| EnergyConservative | Wake only the healthiest 20% of nodes |
-| BalancedRotation | Rotate awake sets periodically |
+DDQN (primary) is benchmarked exclusively against DQN (ablation). Both agents share the same
+environment, seed, and training budget so the comparison is controlled. Use
+`scripts/compare.py` or the web UI Compare tab to generate a 2×2 overlay plot.
 
 ---
 
@@ -81,20 +78,24 @@ mkdir -p results/models results/metrics results/visualizations logs
 #### Option A: Command Line (Recommended for First Run)
 
 ```bash
-python scripts/train_model.py \
+python scripts/train.py \
   --episodes 10 \
   --nodes 50 \
   --lr 1e-4 \
-  --seed 42
+  --seed 42 \
+  --model-type ddqn
 ```
 
 **Parameters:**
 
 - `--episodes`: Number of training episodes (start small: 10-50)
-- `--nodes`: Number of sensor nodes (start small: 50-100)
+- `--nodes`: Number of sensor nodes (default: 50 from config)
 - `--lr`: Learning rate (default: 1e-4)
+- `--gamma`: Discount factor (default: 0.99)
+- `--batch-size`: Replay batch size (default: 64)
+- `--death-threshold`: Fraction of dead nodes ending an episode (default: 0.3)
 - `--seed`: Random seed for reproducibility
-- `--output-dir`: Where to save results (default: results)
+- `--model-type`: `ddqn` (default) or `dqn`
 
 **Expected Output:**
 
@@ -145,52 +146,59 @@ Run IDs have the format `run_YYYYMMDD_HHMMSS` (e.g. `run_20260406_080528`).
 
 ```json
 {
-  "run_id": "run_20260406_080528",
-  "timestamp": "2026-04-06T08:06:10.290101",
-  "config": {
-    "model_type": "ddqn",
-    "episodes": 10,
-    "nodes": 50,
-    "learning_rate": 0.0001
-  },
+  "run_id": "run_20260414_080528",
+  "timestamp": "2026-04-14T08:06:10.290101",
+  "model_used": "ddqn",
+  "episodes": 10,
+  "num_nodes": 50,
+  "learning_rate": 0.0001,
+  "gamma": 0.99,
+  "death_threshold": 0.3,
+  "max": 1000,
+  "seed": 42,
   "metrics": {
     "mean_reward": 145.32,
     "max_reward": 180.5,
     "best_episode": 7,
-    "avg_final_10": 172.4
+    "avg_final_10": 172.4,
+    "final_coverage": 0.87,
+    "final_avg_soh": 0.94,
+    "network_lifetime": 9
   },
-  "image_url": "/api/visualizations/run_20260406_080528_plot.png"
+  "series": { "episode_reward": [...], "coverage": [...], ... },
+  "image_url": "/api/visualizations/run_20260414_080528_plot.png"
 }
 ```
 
 **Key Metrics:**
 
 - `mean_reward`: Average reward per episode (higher is better)
-- `mean_coverage`: Fraction of nodes kept awake (0-1)
-- `final_soh`: Battery health at end (0-1, higher is better)
-- `final_dead_nodes`: Number of failed nodes
+- `final_coverage`: Grid coverage fraction at the last episode (0-1, higher is better)
+- `final_avg_soh`: Average battery health at the last episode (0-1, higher is better)
+- `network_lifetime`: Episode number when alive fraction first dropped below `1 - death_threshold`
 
 ---
 
 ## Project Structure
 
 ```
-m2m_ddqn/
+WSN_M2M/
 ├── config/              # config.yaml + settings singleton
 ├── src/
 │   ├── agents/          # BaseAgent, DDQNAgent, DQNAgent
 │   ├── envs/            # WSNEnv (Gymnasium), BatteryModel
-│   ├── baselines/       # baseline_policies.py
 │   ├── training/        # Trainer (training loop)
 │   └── utils/           # logging, metrics, visualization
 ├── backend/             # Flask API (app.py, routes.py, tasks.py, schemas.py)
 ├── frontend/            # templates/index.html + static/ (CDN-based, no build step)
-├── scripts/             # CLI tools (train, evaluate, report, migrate)
+├── scripts/
+│   ├── train.py         # CLI training wrapper (same artifacts as web API)
+│   └── compare.py       # CLI DDQN-vs-DQN comparison report
 ├── tests/               # pytest suite
 └── results/             # Generated output (gitignored)
     ├── models/          # run_{timestamp}_model.pth
-    ├── metrics/         # run_{timestamp}_metadata.json, _evaluation.json
-    └── visualizations/  # run_{timestamp}_plot.png
+    ├── metrics/         # run_{timestamp}_metadata.json
+    └── visualizations/  # run_{timestamp}_plot.png, compare_*_vs_*.png
 ```
 
 ---
@@ -199,11 +207,11 @@ m2m_ddqn/
 
 | Task | Command |
 |------|---------|
-| Train (CLI) | `python scripts/train_model.py --episodes 500 --nodes 50 --seed 42 --model-type ddqn` |
+| Train DDQN (CLI) | `python scripts/train.py --episodes 500 --nodes 50 --seed 42 --model-type ddqn` |
+| Train DQN (CLI) | `python scripts/train.py --episodes 500 --nodes 50 --seed 42 --model-type dqn` |
+| Compare runs (CLI) | `python scripts/compare.py` (auto-picks most recent DDQN + DQN) |
+| Compare specific runs | `python scripts/compare.py --run-a <id> --run-b <id>` |
 | Web dashboard | `python -m backend.app` → http://localhost:5001 |
-| Evaluate baselines | `python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth --episodes 10` |
-| Generate report | `python scripts/generate_report.py` |
-| Migrate legacy artifacts | `python scripts/migrate_legacy_runs.py` |
 | Run tests | `pytest tests/ -v` |
 | Format code | `black src/ backend/` |
 | Lint | `flake8 src/ backend/` |
