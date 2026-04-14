@@ -72,6 +72,17 @@ def run_training(params: dict, config) -> Dict[str, Any]:
         sink=tuple(config.environment.sink_position),
         max_steps=max_steps,
         death_threshold=death_threshold,
+        reward_weights=(
+            config.environment.reward_weights.coverage,
+            config.environment.reward_weights.energy,
+            config.environment.reward_weights.soh,
+            config.environment.reward_weights.balance,
+        ),
+        charging_enabled=config.environment.charging.enabled,
+        charging_rate=config.environment.charging.rate,
+        charging_threshold=config.environment.charging.threshold,
+        wake_cooperation_soc=config.environment.wake_cooperation.low_battery_soc,
+        sensing_radius=config.environment.sensing_radius,
     )
 
     state_dim = env.observation_space.shape[0]

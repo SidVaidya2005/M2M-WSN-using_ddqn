@@ -60,6 +60,7 @@ class EnvironmentConfig:
     energy_sleep: float
     death_threshold: float
     seed: int
+    sensing_radius: float
     reward_weights: RewardWeightsConfig
     charging: ChargingConfig
     wake_cooperation: WakeCooperationConfig
@@ -126,6 +127,7 @@ class Config:
             energy_sleep=env_data["energy_sleep"],
             death_threshold=env_data["death_threshold"],
             seed=env_data["seed"],
+            sensing_radius=env_data["sensing_radius"],
             reward_weights=RewardWeightsConfig(**env_data["reward_weights"]),
             charging=ChargingConfig(**env_data["charging"]),
             wake_cooperation=WakeCooperationConfig(**env_data["wake_cooperation"]),
@@ -151,6 +153,7 @@ class Config:
             energy_sleep=env_data.get("energy_sleep", 0.01),
             death_threshold=env_data.get("death_threshold", 0.3),
             seed=env_data.get("seed", 42),
+            sensing_radius=env_data.get("sensing_radius", 100.0),
             reward_weights=RewardWeightsConfig(
                 **env_data.get("reward_weights", {"coverage": 10.0, "energy": 5.0, "soh": 1.0, "balance": 2.0})
             ),
@@ -182,6 +185,7 @@ class Config:
                 "energy_sleep": env.energy_sleep,
                 "death_threshold": env.death_threshold,
                 "seed": env.seed,
+                "sensing_radius": env.sensing_radius,
                 "reward_weights": env.reward_weights.__dict__,
                 "charging": env.charging.__dict__,
                 "wake_cooperation": env.wake_cooperation.__dict__,

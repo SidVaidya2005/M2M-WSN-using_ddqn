@@ -19,6 +19,7 @@ environment:
   energy_sleep: 0.01
   death_threshold: 0.3
   seed: 42
+  sensing_radius: 100.0
   reward_weights:
     coverage: 10.0
     energy: 5.0

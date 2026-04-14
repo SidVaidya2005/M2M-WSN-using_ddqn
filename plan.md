@@ -163,40 +163,44 @@ scripts/train.py` returns clean.
 
 ---
 
-### Phase 2 — Environment: Coverage, Charging, SoH, Cooperative Wake-Up
+### Phase 2 — Environment: Coverage, Charging, SoH, Cooperative Wake-Up  ✅ COMPLETE
 
 **Goal:** implement the per-node behaviors the user asked for.
 
-**`src/envs/battery_model.py`:**
-- Add `charging: bool` state and a `charge(rate)` method that increases SoC
-  up to `E_max` and applies a small calendar SoH penalty per charge cycle.
-- Expose `is_charging` and `needs_charge(threshold)` helpers.
+**Edited:**
+- `config/config.yaml` — added `environment.sensing_radius: 100.0`.
+- `config/settings.py` — added `sensing_radius: float` to `EnvironmentConfig`;
+  updated `Config.load()`, `from_dict()`, and `to_dict()` to include it.
+- `src/envs/battery_model.py` — added `charging: bool = False` state;
+  rewrote `charge(rate)` to accept a fraction of E_max and apply calendar SoH
+  decay while charging; added `is_charging` property and `needs_charge(threshold)`
+  helper; `reset_to_health()` now clears `charging`.
+- `src/envs/wsn_env.py` — fully rewritten:
+  - Observation grows to **6 features per node** (added `charging_flag` at index 5);
+    `observation_space` shape is now `(N*6,)`.
+  - Constructor accepts `reward_weights`, `charging_enabled`, `charging_rate`,
+    `charging_threshold`, `wake_cooperation_soc`, `sensing_radius` with config-
+    matching defaults.
+  - `step()` applies charging override → cooperative wake-up → physics in that order.
+  - **Charging:** node enters `charging=True` when `soc/E_max < charging_threshold`;
+    exits when `soc/E_max ≥ 0.95`. Forced SLEEP; `battery.charge(rate)` called.
+  - **Cooperative wake-up:** for each AWAKE node whose `soc/E_max ≤ wake_cooperation_soc`,
+    the nearest non-charging non-dead SLEEP neighbour is forced AWAKE (deduped).
+    Woken node IDs logged in `info["cooperative_wakes"]`.
+  - **Coverage:** 20×20 grid-point sampling with `sensing_radius`; replaces the
+    old "fraction awake" scalar.
+  - **Reward weights** pulled from instance vars (set from config by callers).
+  - **Info dict** now includes: `coverage`, `avg_soh`, `alive_fraction`, `dead_count`,
+    `mean_soc`, `cooperative_wakes`, `charging_count`, `step_count` (plus
+    backward-compat aliases `coverage_ratio` and `dead_nodes`).
+- `backend/tasks.py` — updated `WSNEnv()` call to pass all new params from config.
+- `scripts/train.py` — same.
+- `tests/conftest.py` — `STATE_DIM` updated from `N*5` to `N*6`.
+- `tests/test_env.py` — fully rewritten: fixed stale reset-tuple tests and
+  broken BatteryModel tests; added 19 new tests covering 6-feature observation,
+  coverage metric, charging entry/exit/recovery, and cooperative wake-up.
 
-**`src/envs/wsn_env.py`:**
-- **Observation** grows to 6 features per node; update `observation_space` and
-  the `_build_state()` helper. `state_dim` is always derived from
-  `env.observation_space.shape[0]` — no hardcoding in agents.
-- **Coverage metric:** replace "fraction awake" with a proper coverage function:
-  a node at position `p_i` covers a grid cell `c` if `||p_i - c|| ≤ sensing_radius`;
-  `coverage = |covered cells| / |grid cells|`. Sensing radius from config.
-  Fall back to the cheap "fraction awake" only if `environment.coverage_mode: simple`.
-- **Charging:** a node enters `charging=True` when `SoC < charging.threshold`
-  and leaves it when `SoC ≥ 0.95`. While charging, the node is forced SLEEP
-  and its battery recovers at `charging.rate`.
-- **Cooperative wake-up:** after the agent's action but before stepping physics,
-  for each node with `SoC ≤ wake_cooperation.low_battery_soc` that is AWAKE,
-  wake the nearest SLEEP neighbor (once per step, deduped). Record affected
-  node IDs in `info["cooperative_wakes"]`.
-- **Reward weights** pulled from config instead of hardcoded constants.
-- **Info dict** each step now returns: `coverage`, `avg_soh`, `alive_fraction`,
-  `dead_count`, `mean_soc`, `cooperative_wakes`, `charging_count`. The trainer
-  uses these to build the per-episode metric series.
-
-**Tests:** extend `tests/test_env.py` with cases for charging transitions,
-cooperative wake trigger, and the grown observation shape.
-
-**Verification:** `pytest tests/test_env.py -v` passes; a 50-node smoke
-training episode runs without NaNs.
+**Verification:** `pytest tests/ -v` → 55/55 passed.
 
 ---
 

@@ -12,7 +12,7 @@ if str(_project_root) not in sys.path:
 
 # Use a small node count to keep tests fast
 N_NODES = 10
-STATE_DIM = N_NODES * 5  # 5 features per node
+STATE_DIM = N_NODES * 6  # 6 features per node (Phase 2: added charging_flag)
 ACTION_DIM = 2
 
 
