@@ -3,15 +3,7 @@ const trainingForm     = document.getElementById("trainingForm");
 const resultImage      = document.getElementById("resultImage");
 const imagePlaceholder = document.getElementById("imagePlaceholder");
 
-// ── In-flight benchmark tasks: run_id → { taskId, sectionEl } ───────────────
-const _benchmarkTasks = new Map();
-
 // ── Config sync ──────────────────────────────────────────────────────────────
-// All configuration lives in the single left-panel form. This function reads
-// the current form values and updates any data-config-mirror elements so the
-// rest of the UI always reflects the same values. Currently there are no
-// mirrored display elements (the form IS the display), but this function is
-// the single authoritative hook for any future additions.
 function syncConfigDisplay() {
   const cfg = gatherPayload();
   document.querySelectorAll("[data-config-mirror]").forEach((el) => {
@@ -19,12 +11,10 @@ function syncConfigDisplay() {
     if (key in cfg) el.textContent = cfg[key];
   });
 }
-
-// Register sync on every input/change event in the config form
 trainingForm.addEventListener("input",  syncConfigDisplay);
 trainingForm.addEventListener("change", syncConfigDisplay);
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function showResultImageIfAvailable() {
   if (!resultImage || !imagePlaceholder || !resultImage.getAttribute("src")) return;
@@ -50,15 +40,20 @@ function gatherPayload() {
   };
 }
 
+/**
+ * Populate the metrics KPI grid after a successful training run.
+ * Reads from the new schema: data.metrics.{final_coverage, final_avg_soh,
+ * network_lifetime, mean_reward}. Falls back to top-level keys for
+ * backward-compat with any older response shape.
+ */
 function applyResult(data) {
-  const metricsGrid  = document.getElementById("metricsGrid");
-  const gifContainer = document.getElementById("gifContainer");
+  const metricsGrid = document.getElementById("metricsGrid");
+  const met = data.metrics ?? {};
 
-  const maxReward          = Number(data.max_reward);
-  const bestLifetime       = Number(data.results?.best_lifetime ?? maxReward);
-  const bestEpisode        = Number(data.results?.best_episode ?? data.episodes ?? 0);
-  const meanReward         = Number(data.mean_reward);
-  const avgLifetimeFinal10 = Number(data.results?.avg_lifetime_final_10 ?? meanReward);
+  const finalCoverage     = met.final_coverage     ?? null;
+  const finalAvgSoH       = met.final_avg_soh       ?? null;
+  const networkLifetime   = met.network_lifetime    ?? null;
+  const meanReward        = met.mean_reward         ?? data.mean_reward ?? null;
 
   if (data.image_url) {
     resultImage.src = `${data.image_url}?t=${Date.now()}`;
@@ -70,18 +65,17 @@ function applyResult(data) {
     showResultImageIfAvailable();
   }
 
-  if (data.gif_url) {
-    const resultGif = document.getElementById("resultGif");
-    resultGif.src = `${data.gif_url}?t=${Date.now()}`;
-    gifContainer.style.display = "block";
-  }
+  const fmtPct   = (v) => (v !== null && Number.isFinite(Number(v)))
+    ? `${(Number(v) * 100).toFixed(1)}%` : "—";
+  const fmtNum   = (v) => (v !== null && Number.isFinite(Number(v)))
+    ? Number(v).toFixed(2) : "—";
+  const fmtInt   = (v) => (v !== null && Number.isFinite(Number(v)))
+    ? String(Math.round(Number(v))) : "—";
 
-  document.getElementById("valBestLifetime").textContent =
-    Number.isFinite(bestLifetime) ? bestLifetime.toFixed(2) : "-";
-  document.getElementById("valBestEpisode").textContent =
-    Number.isFinite(bestEpisode) ? String(Math.trunc(bestEpisode)) : "-";
-  document.getElementById("valAvgLifetime").textContent =
-    Number.isFinite(avgLifetimeFinal10) ? avgLifetimeFinal10.toFixed(2) : "-";
+  document.getElementById("valFinalCoverage").textContent   = fmtPct(finalCoverage);
+  document.getElementById("valAvgSoH").textContent          = fmtPct(finalAvgSoH);
+  document.getElementById("valNetworkLifetime").textContent = fmtInt(networkLifetime);
+  document.getElementById("valMeanReward").textContent      = fmtNum(meanReward);
 
   metricsGrid.style.display = "grid";
 }
@@ -89,23 +83,23 @@ function applyResult(data) {
 // ── Tab switching ────────────────────────────────────────────────────────────
 
 function switchTab(tab) {
-  const panelCurrent = document.getElementById("panelCurrent");
-  const panelHistory = document.getElementById("panelHistory");
-  const tabCurrent   = document.getElementById("tabCurrent");
-  const tabHistory   = document.getElementById("tabHistory");
+  const panels = { current: "panelCurrent", history: "panelHistory", compare: "panelCompare" };
+  const tabs   = { current: "tabCurrent",   history: "tabHistory",   compare: "tabCompare"   };
 
-  if (tab === "current") {
-    panelCurrent.style.display = "flex";
-    panelHistory.style.display = "none";
-    tabCurrent.classList.add("active-tab");
-    tabHistory.classList.remove("active-tab");
-  } else {
-    panelCurrent.style.display = "none";
-    panelHistory.style.display = "flex";
-    tabHistory.classList.add("active-tab");
-    tabCurrent.classList.remove("active-tab");
-    fetchHistory();
-  }
+  Object.keys(panels).forEach((key) => {
+    const panel = document.getElementById(panels[key]);
+    const btn   = document.getElementById(tabs[key]);
+    if (key === tab) {
+      panel.style.display = "flex";
+      btn.classList.add("active-tab");
+    } else {
+      panel.style.display = "none";
+      btn.classList.remove("active-tab");
+    }
+  });
+
+  if (tab === "history") fetchHistory();
+  if (tab === "compare") loadCompareRuns();
 }
 
 // ── History: shared helpers ──────────────────────────────────────────────────
@@ -114,6 +108,12 @@ function fmt(val, decimals = 2) {
   if (val === null || val === undefined) return "N/A";
   const n = Number(val);
   return Number.isFinite(n) ? n.toFixed(decimals) : "N/A";
+}
+
+function fmtPct(val) {
+  if (val === null || val === undefined) return "N/A";
+  const n = Number(val);
+  return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : "N/A";
 }
 
 function formatTimestamp(isoString) {
@@ -151,175 +151,34 @@ function buildSection(title, rows) {
   return wrap;
 }
 
-// ── Evaluation results table ─────────────────────────────────────────────────
-
-function buildBenchmarkTable(benchData) {
-  const results  = benchData.results ?? {};
-  const episodes = benchData.benchmark_episodes ?? benchData.eval_episodes ?? "?";
-
-  // Sort: trained model first, then baselines sorted descending by mean reward
-  const entries = Object.entries(results).sort(([, a], [, b]) => {
-    if (a.policy_type === "trained" && b.policy_type !== "trained") return -1;
-    if (b.policy_type === "trained" && a.policy_type !== "trained") return  1;
-    return b.mean_reward - a.mean_reward;
-  });
-
-  const maxReward = Math.max(...entries.map(([, v]) => v.mean_reward));
-
-  const table = document.createElement("table");
-  table.className = "bench-table";
-
-  // Header
-  const thead = document.createElement("thead");
-  const hrow  = document.createElement("tr");
-  ["Policy", "Mean Reward", "Relative Performance"].forEach((text) => {
-    const th = document.createElement("th");
-    th.textContent = text;
-    hrow.appendChild(th);
-  });
-  thead.appendChild(hrow);
-  table.appendChild(thead);
-
-  // Body
-  const tbody = document.createElement("tbody");
-  entries.forEach(([name, info]) => {
-    const tr = document.createElement("tr");
-    if (info.policy_type === "trained") tr.classList.add("bench-trained");
-
-    // Policy name
-    const tdName = document.createElement("td");
-    if (info.policy_type === "trained") {
-      const star = document.createElement("span");
-      star.textContent = "\u2605 ";
-      star.style.fontSize = "0.7rem";
-      tdName.appendChild(star);
-    }
-    tdName.appendChild(document.createTextNode(name));
-    tr.appendChild(tdName);
-
-    // Mean reward
-    const tdReward = document.createElement("td");
-    tdReward.textContent = fmt(info.mean_reward);
-    tr.appendChild(tdReward);
-
-    // Bar
-    const tdBar = document.createElement("td");
-    const barWrap = document.createElement("div");
-    barWrap.className = "bench-bar-wrap";
-    const barFill = document.createElement("div");
-    barFill.className = "bench-bar-fill";
-    const pct = maxReward > 0 ? Math.max(0, (info.mean_reward / maxReward) * 100) : 0;
-    barFill.style.width = `${pct.toFixed(1)}%`;
-    barWrap.appendChild(barFill);
-    tdBar.appendChild(barWrap);
-    tr.appendChild(tdBar);
-
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-
-  // Wrapper with label
-  const wrap = document.createElement("div");
-  const label = document.createElement("p");
-  label.className = "text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-3";
-  label.textContent = `Baseline Comparison \u2014 ${episodes} episodes`;
-  wrap.appendChild(label);
-  wrap.appendChild(table);
-  return wrap;
-}
-
-function renderBenchmarkSection(sectionEl, benchData) {
-  sectionEl.textContent = "";
-  sectionEl.appendChild(buildBenchmarkTable(benchData));
-}
-
-// ── Benchmark polling ────────────────────────────────────────────────────────
-
-async function pollBenchmarkTask(taskId, runId, sectionEl, btn) {
-  const INTERVAL = 2000;
-
-  while (true) {
-    await new Promise((r) => setTimeout(r, INTERVAL));
-
-    let task;
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`);
-      task = await res.json();
-    } catch (_) {
-      continue; // transient network hiccup — keep polling
-    }
-
-    if (task.status === "completed") {
-      _benchmarkTasks.delete(runId);
-      renderBenchmarkSection(sectionEl, task.result);
-      if (btn) { btn.disabled = false; btn.textContent = "Re-evaluate"; }
-      return;
-    }
-
-    if (task.status === "failed") {
-      _benchmarkTasks.delete(runId);
-      sectionEl.textContent = "";
-      const errMsg = document.createElement("p");
-      errMsg.className = "text-xs text-error py-2";
-      errMsg.textContent = `Benchmark failed: ${task.error ?? "unknown error"}`;
-      sectionEl.appendChild(errMsg);
-      if (btn) { btn.disabled = false; btn.textContent = "Retry"; }
-      return;
-    }
-  }
-}
-
-async function triggerBenchmark(runId, sectionEl, btn) {
-  if (_benchmarkTasks.has(runId)) return; // already in flight
-
-  btn.disabled = true;
-  btn.textContent = "Running\u2026";
-
-  // Show inline spinner
-  sectionEl.textContent = "";
-  const spinWrap = document.createElement("div");
-  spinWrap.className = "flex items-center gap-2 py-3 text-on-surface-variant opacity-60";
-  const spinner = document.createElement("div");
-  spinner.className = "loader";
-  spinner.style.cssText = "display:block; border-top-color:#7bd0ff;";
-  const spinLabel = document.createElement("span");
-  spinLabel.className = "text-xs";
-  spinLabel.textContent = "Running baseline comparisons\u2026";
-  spinWrap.appendChild(spinner);
-  spinWrap.appendChild(spinLabel);
-  sectionEl.appendChild(spinWrap);
-
-  try {
-    const res  = await fetch("/api/evaluate", {
-      method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ run_id: runId, episodes: 10 }),
-    });
-    const data = await res.json();
-
-    if (!res.ok || data.status !== "queued") {
-      throw new Error(data.message ?? JSON.stringify(data.errors ?? "Submission failed"));
-    }
-
-    _benchmarkTasks.set(runId, data.task_id);
-    pollBenchmarkTask(data.task_id, runId, sectionEl, btn);
-  } catch (err) {
-    _benchmarkTasks.delete(runId);
-    sectionEl.textContent = "";
-    const errMsg = document.createElement("p");
-    errMsg.className = "text-xs text-error py-2";
-    errMsg.textContent = `Could not start benchmark: ${err.message}`;
-    sectionEl.appendChild(errMsg);
-    btn.disabled = false;
-    btn.textContent = "Retry";
-  }
+/**
+ * Normalise a run dict to a consistent shape, handling both the old schema
+ * (config sub-object) and the new Phase-3 top-level schema.
+ */
+function normalizeRun(run) {
+  const cfg = run.config ?? {};
+  return {
+    run_id:          run.run_id,
+    timestamp:       run.timestamp,
+    model_used:      run.model_used      ?? cfg.model_type      ?? "?",
+    episodes:        run.episodes        ?? cfg.episodes,
+    num_nodes:       run.num_nodes       ?? cfg.nodes,
+    learning_rate:   run.learning_rate   ?? cfg.learning_rate,
+    gamma:           run.gamma           ?? cfg.gamma,
+    batch_size:      run.batch_size      ?? cfg.batch_size,
+    death_threshold: run.death_threshold ?? cfg.death_threshold,
+    max_steps:       run.max             ?? cfg.max_steps,
+    seed:            run.seed            ?? cfg.seed,
+    metrics:         run.metrics         ?? {},
+    image_url:       run.image_url,
+  };
 }
 
 // ── History card builder ─────────────────────────────────────────────────────
 
 function buildHistoryCard(run) {
-  const cfg = run.config  ?? {};
-  const met = run.metrics ?? {};
+  const r   = normalizeRun(run);
+  const met = r.metrics;
 
   const card = document.createElement("div");
   card.className = "history-card bg-surface-container-low rounded-xl border border-outline-variant/10 overflow-hidden";
@@ -331,16 +190,16 @@ function buildHistoryCard(run) {
   const headLeft = document.createElement("div");
   const tsEl = document.createElement("p");
   tsEl.className = "text-[10px] text-on-surface-variant";
-  tsEl.textContent = formatTimestamp(run.timestamp);
+  tsEl.textContent = formatTimestamp(r.timestamp);
   const idEl = document.createElement("h3");
   idEl.className = "font-headline font-bold text-sm text-on-surface mt-0.5";
-  idEl.textContent = run.run_id ?? "";
+  idEl.textContent = r.run_id ?? "";
   headLeft.appendChild(tsEl);
   headLeft.appendChild(idEl);
 
   const badge = document.createElement("span");
   badge.className = "history-badge";
-  badge.textContent = (cfg.model_type ?? "").toUpperCase();
+  badge.textContent = r.model_used.toUpperCase();
 
   header.appendChild(headLeft);
   header.appendChild(badge);
@@ -350,41 +209,42 @@ function buildHistoryCard(run) {
   const body = document.createElement("div");
   body.className = "p-5 grid grid-cols-1 md:grid-cols-3 gap-5";
 
-  // Display helper: null/undefined → "N/A", 0 → "0", otherwise value as string
   const cfgVal = (v) => (v === null || v === undefined) ? "N/A" : String(v);
-  const deathPct = cfg.death_threshold != null
-    ? `${(cfg.death_threshold * 100).toFixed(0)}%` : "N/A";
+  const deathPct = r.death_threshold != null
+    ? `${(r.death_threshold * 100).toFixed(0)}%` : "N/A";
 
   body.appendChild(buildSection("Configuration", [
-    ["Episodes",      cfgVal(cfg.episodes)],
-    ["Nodes",         cfgVal(cfg.nodes)],
-    ["Learning Rate", cfgVal(cfg.learning_rate)],
-    ["Gamma",         cfgVal(cfg.gamma)],
-    ["Batch Size",    cfgVal(cfg.batch_size)],
-    ["Max Steps",     cfgVal(cfg.max_steps)],
+    ["Model",         r.model_used.toUpperCase()],
+    ["Episodes",      cfgVal(r.episodes)],
+    ["Nodes",         cfgVal(r.num_nodes)],
+    ["Learning Rate", cfgVal(r.learning_rate)],
+    ["Gamma",         cfgVal(r.gamma)],
+    ["Max Steps",     cfgVal(r.max_steps)],
     ["Death Thresh.", deathPct],
-    ["Seed",          cfgVal(cfg.seed)],
+    ["Seed",          cfgVal(r.seed)],
   ]));
 
-  const metVal = (v) => (v === null || v === undefined) ? "N/A" : String(v);
   body.appendChild(buildSection("Metrics", [
-    ["Max Reward",   fmt(met.max_reward)],
-    ["Mean Reward",  fmt(met.mean_reward)],
-    ["Best Episode", metVal(met.best_episode)],
-    ["Avg Last 10",  fmt(met.avg_final_10)],
+    ["Mean Reward",       fmt(met.mean_reward)],
+    ["Max Reward",        fmt(met.max_reward)],
+    ["Final Coverage",    fmtPct(met.final_coverage)],
+    ["Avg SoH",           fmtPct(met.final_avg_soh)],
+    ["Network Lifetime",  met.network_lifetime != null ? `${met.network_lifetime} ep` : "N/A"],
+    ["Best Episode",      cfgVal(met.best_episode)],
+    ["Avg Last 10",       fmt(met.avg_final_10)],
   ]));
 
   // Plot column
   const plotWrap  = document.createElement("div");
   const plotTitle = document.createElement("p");
   plotTitle.className = "text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest mb-2";
-  plotTitle.textContent = "Training Curve";
+  plotTitle.textContent = "Training Dashboard";
   plotWrap.appendChild(plotTitle);
 
-  if (run.image_url) {
+  if (r.image_url) {
     const img = document.createElement("img");
-    img.src   = `${run.image_url}?t=1`;
-    img.alt   = `Training curve for ${run.run_id}`;
+    img.src   = `${r.image_url}?t=1`;
+    img.alt   = `Training dashboard for ${r.run_id}`;
     img.className = "history-card-plot result-fade";
     img.addEventListener("error", () => { img.style.display = "none"; });
     plotWrap.appendChild(img);
@@ -397,56 +257,13 @@ function buildHistoryCard(run) {
   body.appendChild(plotWrap);
 
   card.appendChild(body);
-
-  // ── Evaluation / Benchmark section ──
-  const benchSection = document.createElement("div");
-  benchSection.className = "bench-section";
-
-  const benchHeader = document.createElement("div");
-  benchHeader.className = "flex items-center justify-between mb-3";
-
-  const benchTitle = document.createElement("p");
-  benchTitle.className = "text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest";
-  benchTitle.textContent = "Baseline Benchmark";
-  benchHeader.appendChild(benchTitle);
-
-  const benchBtn = document.createElement("button");
-  benchBtn.className = "bench-eval-btn";
-
-  // icon
-  const btnIcon = document.createElement("span");
-  btnIcon.className = "material-symbols-outlined text-[14px]";
-  btnIcon.textContent = "play_circle";
-  benchBtn.appendChild(btnIcon);
-  benchBtn.appendChild(document.createTextNode(
-    run.evaluation ? "Re-evaluate" : "Evaluate Baselines"
-  ));
-  benchHeader.appendChild(benchBtn);
-  benchSection.appendChild(benchHeader);
-
-  // Results container
-  const resultsContainer = document.createElement("div");
-  benchSection.appendChild(resultsContainer);
-
-  // If we already have results (inlined by /api/history), render them immediately
-  if (run.evaluation) {
-    renderBenchmarkSection(resultsContainer, run.evaluation);
-  } else {
-    const hint = document.createElement("p");
-    hint.className = "text-xs text-on-surface-variant opacity-50";
-    hint.textContent = "Click \u201cEvaluate Baselines\u201d to compare this model against Random, Greedy, EnergyConservative, and BalancedRotation policies.";
-    resultsContainer.appendChild(hint);
-  }
-
-  benchBtn.addEventListener("click", () => {
-    triggerBenchmark(run.run_id, resultsContainer, benchBtn);
-  });
-
-  card.appendChild(benchSection);
   return card;
 }
 
 // ── History fetch ────────────────────────────────────────────────────────────
+
+// Shared cache so Compare tab can reuse without a second network request
+let _historyCache = [];
 
 async function fetchHistory() {
   const historyList = document.getElementById("historyList");
@@ -468,9 +285,10 @@ async function fetchHistory() {
   try {
     const res  = await fetch("/api/history");
     const runs = await res.json();
+    _historyCache = Array.isArray(runs) ? runs : [];
     historyList.textContent = "";
 
-    if (!Array.isArray(runs) || runs.length === 0) {
+    if (_historyCache.length === 0) {
       const empty = document.createElement("div");
       empty.className = "flex flex-col items-center justify-center gap-3 py-16 text-on-surface-variant opacity-50";
       const icon = document.createElement("span");
@@ -485,7 +303,7 @@ async function fetchHistory() {
       return;
     }
 
-    runs.forEach((run) => historyList.appendChild(buildHistoryCard(run)));
+    _historyCache.forEach((run) => historyList.appendChild(buildHistoryCard(run)));
   } catch (err) {
     historyList.textContent = "";
     const errDiv = document.createElement("div");
@@ -499,6 +317,97 @@ async function fetchHistory() {
     errDiv.appendChild(errIcon);
     errDiv.appendChild(errMsg);
     historyList.appendChild(errDiv);
+  }
+}
+
+// ── Compare panel ────────────────────────────────────────────────────────────
+
+async function loadCompareRuns() {
+  // Re-fetch history if cache is stale (empty)
+  if (_historyCache.length === 0) {
+    try {
+      const res  = await fetch("/api/history");
+      const runs = await res.json();
+      _historyCache = Array.isArray(runs) ? runs : [];
+    } catch (_) {
+      return;
+    }
+  }
+
+  const selA = document.getElementById("compareRunA");
+  const selB = document.getElementById("compareRunB");
+
+  // Rebuild options
+  [selA, selB].forEach((sel) => {
+    // Keep the first placeholder option
+    while (sel.options.length > 1) sel.remove(1);
+    _historyCache.forEach((run) => {
+      const r   = normalizeRun(run);
+      const opt = document.createElement("option");
+      opt.value       = r.run_id;
+      opt.textContent = `${r.model_used.toUpperCase()} — ${r.run_id} (${r.episodes ?? "?"} ep)`;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+async function runComparison() {
+  const runIdA = document.getElementById("compareRunA").value;
+  const runIdB = document.getElementById("compareRunB").value;
+
+  const statusEl     = document.getElementById("compareStatus");
+  const btn          = document.getElementById("compareBtn");
+  const btnText      = document.getElementById("compareBtnText");
+  const loader       = document.getElementById("compareLoader");
+  const compareImg   = document.getElementById("compareImage");
+  const placeholder  = document.getElementById("comparePlaceholder");
+
+  statusEl.style.display = "none";
+  statusEl.className = "status-message mx-5 mb-4";
+
+  if (!runIdA || !runIdB) {
+    statusEl.textContent = "Please select both Run A and Run B.";
+    statusEl.classList.add("status-error");
+    statusEl.style.display = "block";
+    return;
+  }
+  if (runIdA === runIdB) {
+    statusEl.textContent = "Select two different runs.";
+    statusEl.classList.add("status-error");
+    statusEl.style.display = "block";
+    return;
+  }
+
+  btn.disabled = true;
+  btnText.textContent = "Generating\u2026";
+  loader.style.display = "block";
+
+  try {
+    const url = `/api/compare?a=${encodeURIComponent(runIdA)}&b=${encodeURIComponent(runIdB)}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    if (!res.ok || data.status !== "success") {
+      throw new Error(data.message ?? "Comparison failed");
+    }
+
+    compareImg.src = `${data.image_url}?t=${Date.now()}`;
+    compareImg.onload = () => {
+      placeholder.style.display = "none";
+      compareImg.style.display  = "block";
+    };
+
+    statusEl.textContent = "Comparison generated successfully.";
+    statusEl.classList.add("status-success");
+    statusEl.style.display = "block";
+  } catch (err) {
+    statusEl.textContent = `Error: ${err.message}`;
+    statusEl.classList.add("status-error");
+    statusEl.style.display = "block";
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = "Generate";
+    loader.style.display = "none";
   }
 }
 
@@ -516,7 +425,7 @@ async function pollTask(taskId, statusMessage, buttonText, loader, runButton) {
     if (task.status === "completed") {
       statusMessage.textContent =
         task.result.message ||
-        `Training completed. Mean reward: ${Number(task.result.mean_reward).toFixed(2)}`;
+        `Training completed. Mean reward: ${Number(task.result.metrics?.mean_reward ?? task.result.mean_reward).toFixed(2)}`;
       statusMessage.classList.add("status-success");
       statusMessage.style.display = "block";
       applyResult(task.result);
@@ -544,14 +453,12 @@ trainingForm.addEventListener("submit", async (e) => {
   const buttonText    = document.getElementById("runBtnText");
   const loader        = document.getElementById("loader");
   const statusMessage = document.getElementById("statusMessage");
-  const gifContainer  = document.getElementById("gifContainer");
 
   runButton.disabled = true;
   buttonText.textContent = "Submitting\u2026";
   loader.style.display = "block";
   statusMessage.style.display = "none";
   statusMessage.className = "status-message";
-  gifContainer.style.display = "none";
 
   try {
     const submitRes = await fetch("/api/train/async", {
@@ -571,7 +478,7 @@ trainingForm.addEventListener("submit", async (e) => {
     buttonText.textContent = "Queued\u2026";
     await pollTask(submitData.task_id, statusMessage, buttonText, loader, runButton);
 
-    // Silently pre-load history so the new run is ready when the user switches tabs
+    // Silently pre-load history and compare selects for the new run
     fetchHistory();
   } catch (err) {
     statusMessage.textContent = `Error: ${err.message}`;

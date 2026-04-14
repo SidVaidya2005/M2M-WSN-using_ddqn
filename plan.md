@@ -269,7 +269,7 @@ Matches the user's "4 graphs" requirement and keeps the reward curve discoverabl
 
 ---
 
-### Phase 4 — Frontend Alignment
+### Phase 4 — Frontend Alignment ✅ COMPLETE
 
 **Goal:** the single-page UI matches the new backend contract and removes
 every mention of baselines.

@@ -223,29 +223,42 @@
                             Training History
                         </span>
                     </button>
+                    <button id="tabCompare" class="tab-btn" onclick="switchTab('compare')">
+                        <span class="flex items-center justify-center gap-1.5">
+                            <span class="material-symbols-outlined text-[16px]">compare</span>
+                            Compare
+                        </span>
+                    </button>
                 </div>
 
                 <!-- ── Panel: Current Run ──────────────────────────────── -->
                 <div id="panelCurrent" class="flex flex-col gap-5">
 
-                    <!-- KPI Cards -->
-                    <div id="metricsGrid" class="grid grid-cols-1 md:grid-cols-3 gap-4" style="display:none;">
+                    <!-- KPI Cards — 4 metrics aligned with new schema -->
+                    <div id="metricsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-4" style="display:none;">
                         <div class="bg-surface-container p-5 rounded-xl border-l-2 border-primary">
-                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Best Lifetime</p>
+                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Final Coverage</p>
                             <div class="flex items-baseline gap-2 mt-1.5">
-                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valBestLifetime">—</h3>
+                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valFinalCoverage">—</h3>
                             </div>
                         </div>
                         <div class="bg-surface-container p-5 rounded-xl">
-                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Best Episode</p>
+                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Avg Battery SoH</p>
                             <div class="flex items-baseline gap-2 mt-1.5">
-                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valBestEpisode">—</h3>
+                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valAvgSoH">—</h3>
                             </div>
                         </div>
                         <div class="bg-surface-container p-5 rounded-xl">
-                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Avg Lifetime (Last 10)</p>
+                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Network Lifetime</p>
                             <div class="flex items-baseline gap-2 mt-1.5">
-                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valAvgLifetime">—</h3>
+                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valNetworkLifetime">—</h3>
+                                <span class="text-xs text-on-surface-variant">ep</span>
+                            </div>
+                        </div>
+                        <div class="bg-surface-container p-5 rounded-xl">
+                            <p class="text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest">Mean Reward</p>
+                            <div class="flex items-baseline gap-2 mt-1.5">
+                                <h3 class="text-2xl font-headline font-extrabold text-on-surface" id="valMeanReward">—</h3>
                             </div>
                         </div>
                     </div>
@@ -262,9 +275,9 @@
                         <div class="flex-1 m-5 bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/5 relative min-h-[320px]">
                             <div id="imagePlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-on-surface-variant">
                                 <span class="material-symbols-outlined text-5xl opacity-20">image</span>
-                                <p class="text-sm opacity-50">Run training to view the generated plots here.</p>
+                                <p class="text-sm opacity-50">Run training to view the 4-panel dashboard here.</p>
                             </div>
-                            <img id="resultImage" style="display:none;" alt="DDQN Training Results"
+                            <img id="resultImage" style="display:none;" alt="WSN Training Dashboard"
                                  class="w-full h-auto rounded-xl result-fade">
                         </div>
 
@@ -274,23 +287,13 @@
                                 <span class="text-xs text-on-surface-variant font-medium">Training Reward</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="w-2.5 h-2.5 rounded-full bg-tertiary"></span>
-                                <span class="text-xs text-on-surface-variant font-medium">Baseline</span>
+                                <span class="w-2.5 h-2.5 rounded-full" style="background:#2a9d8f;"></span>
+                                <span class="text-xs text-on-surface-variant font-medium">Coverage / SoH</span>
                             </div>
-                        </div>
-                    </div>
-
-                    <!-- Simulation GIF -->
-                    <div id="gifContainer" class="bg-surface-container-low rounded-xl border border-outline-variant/10 overflow-hidden" style="display:none;">
-                        <div class="px-5 py-4 border-b border-outline-variant/10">
-                            <h2 class="font-headline font-bold text-base tracking-tight flex items-center gap-2">
-                                <span class="material-symbols-outlined text-primary text-[20px]">play_circle</span>
-                                Best Episode Simulation
-                            </h2>
-                        </div>
-                        <div class="p-5">
-                            <img id="resultGif" src="" alt="Best Episode Simulation"
-                                 class="w-full h-auto rounded-xl">
+                            <div class="flex items-center gap-2">
+                                <span class="w-2.5 h-2.5 rounded-full" style="background:#9b5de5;"></span>
+                                <span class="text-xs text-on-surface-variant font-medium">Lifetime</span>
+                            </div>
                         </div>
                     </div>
 
@@ -300,7 +303,7 @@
                 <div id="panelHistory" class="hidden flex-col gap-4 custom-scrollbar">
 
                     <div class="flex items-center justify-between">
-                        <p class="text-xs text-on-surface-variant">All past runs, newest first. Plots load from the visualizations folder.</p>
+                        <p class="text-xs text-on-surface-variant">All past runs, newest first.</p>
                         <button onclick="fetchHistory()" class="flex items-center gap-1.5 text-xs text-on-surface-variant hover:text-primary transition-colors py-1 px-2 rounded-lg hover:bg-surface-container">
                             <span class="material-symbols-outlined text-[16px]">refresh</span>
                             Refresh
@@ -312,6 +315,63 @@
                         <div class="flex flex-col items-center justify-center gap-3 py-16 text-on-surface-variant opacity-50">
                             <span class="material-symbols-outlined text-5xl">history</span>
                             <p class="text-sm">No training runs yet.</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- ── Panel: DDQN vs DQN Compare ─────────────────────── -->
+                <div id="panelCompare" class="hidden flex-col gap-5">
+
+                    <!-- Selectors card -->
+                    <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 overflow-hidden">
+                        <div class="px-5 py-4 bg-surface-container border-b border-outline-variant/10">
+                            <h2 class="font-headline font-bold text-base tracking-tight flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-[20px]">compare</span>
+                                DDQN vs DQN Comparison
+                            </h2>
+                            <p class="text-on-surface-variant text-xs mt-0.5">Pick two training runs to generate a 4-panel side-by-side overlay.</p>
+                        </div>
+
+                        <div class="p-5 flex flex-col md:flex-row gap-4 items-end">
+                            <div class="flex-1 space-y-1.5">
+                                <label class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest" for="compareRunA">Run A</label>
+                                <select id="compareRunA"
+                                        class="w-full bg-surface-container-lowest border-0 text-on-surface rounded-lg py-2.5 px-3.5 text-sm focus:ring-1 focus:ring-primary/40 appearance-none">
+                                    <option value="">— select a run —</option>
+                                </select>
+                            </div>
+                            <div class="flex-1 space-y-1.5">
+                                <label class="block text-[10px] font-semibold text-on-surface-variant uppercase tracking-widest" for="compareRunB">Run B</label>
+                                <select id="compareRunB"
+                                        class="w-full bg-surface-container-lowest border-0 text-on-surface rounded-lg py-2.5 px-3.5 text-sm focus:ring-1 focus:ring-primary/40 appearance-none">
+                                    <option value="">— select a run —</option>
+                                </select>
+                            </div>
+                            <button id="compareBtn" onclick="runComparison()" class="compare-btn">
+                                <span class="material-symbols-outlined text-[16px]">play_circle</span>
+                                <span id="compareBtnText">Generate</span>
+                                <div class="loader" id="compareLoader"></div>
+                            </button>
+                        </div>
+                        <div id="compareStatus" class="status-message mx-5 mb-4" role="status" aria-live="polite"></div>
+                    </div>
+
+                    <!-- Comparison image area -->
+                    <div class="bg-surface-container-low rounded-xl border border-outline-variant/10 overflow-hidden">
+                        <div class="px-5 py-4 border-b border-outline-variant/10">
+                            <h2 class="font-headline font-bold text-base tracking-tight flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-[20px]">image</span>
+                                Comparison Plot
+                            </h2>
+                        </div>
+                        <div class="m-5 bg-surface-container-lowest rounded-xl overflow-hidden border border-outline-variant/5 relative min-h-[240px]">
+                            <div id="comparePlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-on-surface-variant">
+                                <span class="material-symbols-outlined text-5xl opacity-20">compare</span>
+                                <p class="text-sm opacity-50">Select two runs and click Generate.</p>
+                            </div>
+                            <img id="compareImage" style="display:none;" alt="DDQN vs DQN Comparison"
+                                 class="w-full h-auto rounded-xl result-fade">
                         </div>
                     </div>
 

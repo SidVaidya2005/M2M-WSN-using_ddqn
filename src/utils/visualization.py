@@ -229,6 +229,80 @@ def _plot_single_reward_curve(
     plt.close(fig)
 
 
+def plot_comparison_dashboard(
+    series_a: Dict[str, List],
+    series_b: Dict[str, List],
+    label_a: str = "Run A",
+    label_b: str = "Run B",
+    output_path: Optional[str] = None,
+) -> None:
+    """Save a 2×2 DDQN-vs-DQN comparison PNG with both agents overlaid.
+
+    Panels
+    ------
+    Top-left  : Network Coverage — both agents overlaid
+    Top-right : Battery Health (avg SoH) — both agents overlaid
+    Bottom-left : Network Lifetime (steps/episode) — both agents overlaid
+    Bottom-right: Episode Reward — both agents overlaid
+
+    Args:
+        series_a: Per-episode series dict for run A (keys: episode_reward, coverage,
+                  avg_soh, step_counts, …).
+        series_b: Same for run B.
+        label_a: Legend label for run A.
+        label_b: Legend label for run B.
+        output_path: Where to write the PNG.
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("Warning: matplotlib not installed, skipping comparison plot")
+        return
+
+    COLOR_A = "#7bd0ff"   # primary blue — typically DDQN
+    COLOR_B = "#fe964a"   # orange — typically DQN
+    GREY_BG = "#fdfdfd"
+
+    def _ep(values):
+        return list(range(1, len(values) + 1))
+
+    def _overlay(ax, key, ylabel, title, ylim=None):
+        va = series_a.get(key, [])
+        vb = series_b.get(key, [])
+        ax.set_facecolor(GREY_BG)
+        if va:
+            ax.plot(_ep(va), va, color=COLOR_A, alpha=0.8, linewidth=1.5, label=label_a)
+        if vb:
+            ax.plot(_ep(vb), vb, color=COLOR_B, alpha=0.8, linewidth=1.5, label=label_b)
+        ax.set_xlabel("Episode")
+        ax.set_ylabel(ylabel)
+        ax.set_title(title)
+        ax.legend(fontsize=8)
+        ax.grid(True, alpha=0.3)
+        if ylim:
+            ax.set_ylim(*ylim)
+
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    fig.suptitle(
+        f"DDQN vs DQN Comparison\n{label_a}  ·  {label_b}",
+        fontsize=13, fontweight="bold", y=0.98,
+    )
+
+    _overlay(axes[0, 0], "coverage",       "Coverage fraction", "Network Coverage",        ylim=(0, 1.05))
+    _overlay(axes[0, 1], "avg_soh",        "Avg SoH",           "Battery Health (avg SoH)", ylim=(0, 1.05))
+    _overlay(axes[1, 0], "step_counts",    "Steps survived",    "Network Lifetime (steps/ep)")
+    _overlay(axes[1, 1], "episode_reward", "Episode Reward",    "Reward")
+
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
+
+    if output_path:
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, dpi=150, bbox_inches="tight")
+
+    plt.close(fig)
+
+
 # Backward-compat alias — callers that only have rewards still work.
 def plot_training_curve(
     episode_rewards: List[float],

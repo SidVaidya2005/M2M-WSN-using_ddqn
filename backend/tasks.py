@@ -20,7 +20,7 @@ from src.agents.dqn_agent import DQNAgent
 from src.envs.wsn_env import WSNEnv
 from src.training.trainer import Trainer
 from src.utils.logger import get_logger
-from src.utils.visualization import plot_training_dashboard
+from src.utils.visualization import plot_training_dashboard, plot_comparison_dashboard
 
 logger = get_logger(__name__)
 
@@ -151,6 +151,7 @@ def run_training(params: dict, config) -> Dict[str, Any]:
             "avg_soh": [float(v) for v in soh_series],
             "alive_fraction": [float(v) for v in ep_series.get("alive_fraction", [])],
             "mean_soc": [float(v) for v in ep_series.get("mean_soc", [])],
+            "step_counts": [int(v) for v in ep_series.get("step_counts", [])],
         },
         "image_url": image_url,
         "model_path": str(model_path),
@@ -224,3 +225,52 @@ def submit_training_task(params: dict, config) -> str:
     thread.start()
     logger.info(f"Submitted background task {task_id}")
     return task_id
+
+
+def compare_runs(run_id_a: str, run_id_b: str, config) -> Dict[str, Any]:
+    """Generate a 2×2 DDQN-vs-DQN comparison PNG from two saved training runs.
+
+    Loads the metadata JSON for each run_id, extracts per-episode series, and
+    produces a side-by-side overlay plot saved to results/visualizations/.
+
+    Args:
+        run_id_a: First run ID (e.g. "run_20260414_080000")
+        run_id_b: Second run ID
+        config: Application Config object
+
+    Returns:
+        Dict with ``image_url``, ``run_a``, ``run_b`` keys.
+
+    Raises:
+        FileNotFoundError: If either metadata file does not exist.
+    """
+    metrics_dir = Path(config.paths.metrics)
+    vis_dir = Path(config.paths.visualizations)
+
+    def _load_meta(run_id: str) -> dict:
+        path = metrics_dir / f"{run_id}_metadata.json"
+        if not path.exists():
+            raise FileNotFoundError(f"{run_id}_metadata.json not found in {metrics_dir}")
+        with open(path) as f:
+            return json.load(f)
+
+    meta_a = _load_meta(run_id_a)
+    meta_b = _load_meta(run_id_b)
+
+    series_a = meta_a.get("series", {})
+    series_b = meta_b.get("series", {})
+
+    label_a = f"{(meta_a.get('model_used') or meta_a.get('config', {}).get('model_type', '?')).upper()} ({run_id_a[-8:]})"
+    label_b = f"{(meta_b.get('model_used') or meta_b.get('config', {}).get('model_type', '?')).upper()} ({run_id_b[-8:]})"
+
+    filename = f"compare_{run_id_a}_vs_{run_id_b}.png"
+    plot_path = vis_dir / filename
+    plot_comparison_dashboard(series_a, series_b, label_a, label_b,
+                              output_path=str(plot_path))
+
+    logger.info(f"Comparison plot saved: {plot_path}")
+    return {
+        "image_url": f"/api/visualizations/{filename}",
+        "run_a": run_id_a,
+        "run_b": run_id_b,
+    }

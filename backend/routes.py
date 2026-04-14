@@ -45,7 +45,7 @@ def _apply_config_defaults(run: dict, config) -> None:
 
 from src.utils.logger import get_logger
 from .schemas import TrainingRequestSchema
-from .tasks import run_training, submit_training_task, get_task
+from .tasks import run_training, submit_training_task, get_task, compare_runs
 
 api_bp = Blueprint("api", __name__)
 logger = get_logger(__name__)
@@ -174,6 +174,40 @@ def get_history():
         except Exception as exc:
             logger.warning(f"Skipping corrupt metadata file {meta_file}: {exc}")
     return jsonify(runs), 200
+
+
+@api_bp.route("/compare", methods=["GET"])
+def compare_runs_endpoint():
+    """Generate and serve a 2×2 DDQN-vs-DQN comparison plot.
+
+    Query params:
+        a  Run ID of the first training run
+        b  Run ID of the second training run
+
+    Returns:
+        200  {"status": "success", "image_url": "...", "run_a": "...", "run_b": "..."}
+        400  Missing run IDs
+        404  Metadata file not found for one of the run IDs
+        500  Plot generation failed
+    """
+    run_id_a = request.args.get("a", "").strip()
+    run_id_b = request.args.get("b", "").strip()
+    if not run_id_a or not run_id_b:
+        return jsonify({"status": "error",
+                        "message": "Provide ?a=<run_id>&b=<run_id>"}), 400
+
+    config = current_app.config.get("CONFIG")
+    if not config:
+        return jsonify({"error": "Configuration not loaded"}), 500
+
+    try:
+        result = compare_runs(run_id_a, run_id_b, config)
+        return jsonify({"status": "success", **result}), 200
+    except FileNotFoundError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 404
+    except Exception as exc:
+        logger.error(f"Comparison failed: {exc}", exc_info=True)
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 @api_bp.route("/results/<path:filename>", methods=["GET"])
