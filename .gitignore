@@ -90,6 +90,7 @@ Thumbs.db
 *.gif
 *.jpg
 *.jpeg
+
 # Exception: keep any committed images in docs/ or frontend/static/
 !docs/**/*.png
 !docs/**/*.jpg

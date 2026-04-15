@@ -29,3 +29,4 @@ Refer to the `docs/` directory for detailed context rather than duplicating patt
 
 ## for more information
 @CLAUDE.md
+@.claude/

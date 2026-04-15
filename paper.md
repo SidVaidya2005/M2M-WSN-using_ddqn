@@ -1,6 +1,9 @@
 # Title: DDQN for Coverage and Battery Optimization in WSN Scheduling
+
 **Authors:** Vinay Kumar, Siddarth Vaidya, Ch.Tarun Kumar, Ankitesh Shrivastava
+
 **Affiliation:** IIIT Naya Raipur, India
+
 **Journal/Venue:** IEEE Transactions on Wireless Communications
 
 ---
@@ -31,7 +34,7 @@ None of these policies model battery degradation physics, cooperative inter-node
 
 ### 1.2 Limitations of Standard DQN
 
-Deep Q-Networks offer a principled approach to sequential scheduling via function approximation over state-action value space. However, standard DQN uses the same network to both *select* and *evaluate* the next-state action:
+Deep Q-Networks offer a principled approach to sequential scheduling via function approximation over state-action value space. However, standard DQN uses the same network to both _select_ and _evaluate_ the next-state action:
 
 $$y = r + \gamma \cdot \max_{a} Q_{\text{target}}(s', a)$$
 
@@ -73,13 +76,13 @@ The present work is distinguished from prior literature on three axes: (i) it in
 
 **Table I: Comparison of Related Works**
 
-| Work | Method | Battery Model | SoH | Cooperative Behaviour | Scale |
-|------|--------|--------------|-----|-----------------------|-------|
-| LEACH [REF] | Clustering | SoC only | No | No | Large |
-| SEP [REF] | Clustering | SoC only | No | No | Large |
-| DQN-WSN [REF] | DQN | SoC only | No | No | Medium |
-| MARL-WSN [REF] | Multi-agent RL | SoC only | No | Implicit | Medium |
-| **DDQN-WSN (Ours)** | **DDQN** | **SoC + SoH** | **Yes** | **Yes** | **50 nodes** |
+| Work                | Method         | Battery Model | SoH     | Cooperative Behaviour | Scale        |
+| ------------------- | -------------- | ------------- | ------- | --------------------- | ------------ |
+| LEACH [REF]         | Clustering     | SoC only      | No      | No                    | Large        |
+| SEP [REF]           | Clustering     | SoC only      | No      | No                    | Large        |
+| DQN-WSN [REF]       | DQN            | SoC only      | No      | No                    | Medium       |
+| MARL-WSN [REF]      | Multi-agent RL | SoC only      | No      | Implicit              | Medium       |
+| **DDQN-WSN (Ours)** | **DDQN**       | **SoC + SoH** | **Yes** | **Yes**               | **50 nodes** |
 
 ---
 
@@ -151,14 +154,14 @@ Once dead, the node is permanently excluded from scheduling and coverage calcula
 
 At each timestep $t$, the environment returns a flat observation vector $\mathbf{s}^t \in \mathbb{R}^{6N}$. For node $i$, the six features are:
 
-| Index | Feature | Range | Description |
-|-------|---------|-------|-------------|
-| $6i + 0$ | $\text{SoC}_i / E_{\max}$ | $[0, 1]$ | Normalised available energy |
-| $6i + 1$ | $\text{SoH}_i$ | $[0, 1]$ | Battery health (monotonically decreasing) |
-| $6i + 2$ | $a_i^{t-1}$ | $\{0, 1\}$ | Action taken in the previous step |
-| $6i + 3$ | $d_i$ | $[0, 1]$ | Normalised Euclidean distance to sink |
-| $6i + 4$ | $\rho_i^t$ | $[0, 1]$ | Exponential moving average activity ratio |
-| $6i + 5$ | $c_i^t$ | $\{0, 1\}$ | Charging flag (1 if currently charging) |
+| Index    | Feature                   | Range      | Description                               |
+| -------- | ------------------------- | ---------- | ----------------------------------------- |
+| $6i + 0$ | $\text{SoC}_i / E_{\max}$ | $[0, 1]$   | Normalised available energy               |
+| $6i + 1$ | $\text{SoH}_i$            | $[0, 1]$   | Battery health (monotonically decreasing) |
+| $6i + 2$ | $a_i^{t-1}$               | $\{0, 1\}$ | Action taken in the previous step         |
+| $6i + 3$ | $d_i$                     | $[0, 1]$   | Normalised Euclidean distance to sink     |
+| $6i + 4$ | $\rho_i^t$                | $[0, 1]$   | Exponential moving average activity ratio |
+| $6i + 5$ | $c_i^t$                   | $\{0, 1\}$ | Charging flag (1 if currently charging)   |
 
 The activity ratio is updated per step as:
 $$\rho_i^{t+1} = 0.9 \cdot \rho_i^t + 0.1 \cdot a_i^t$$
@@ -288,36 +291,36 @@ All experiments use the configuration in Table II. The same seed controls node p
 
 **Table II: Experimental Configuration**
 
-| Parameter | Value |
-|-----------|-------|
-| Number of nodes $N$ | 50 |
-| Arena size | 500 m × 500 m |
-| Sink position | (250, 250) |
-| Sensing radius $r_s$ | 100 m |
-| Coverage grid resolution | 20 × 20 points |
-| Max steps per episode $T_{\max}$ | 1000 |
-| Death threshold $\delta$ | 0.3 |
-| Battery capacity $E_{\max}$ | 100 |
-| Awake energy draw $e_{\text{awake}}$ | 1.0 |
-| Sleep energy draw $e_{\text{sleep}}$ | 0.01 |
-| Cycle degradation rate $k_{\text{cycle}}$ | $5 \times 10^{-5}$ |
-| DoD exponent $\alpha$ | 1.2 |
-| Calendar decay $k_{\text{cal}}$ | $5 \times 10^{-7}$ |
-| Charging threshold | 0.20 (SoC fraction) |
-| Charging rate | 0.05 (SoC fraction/step) |
-| Cooperative wake-up SoC | 0.50 |
-| Training episodes | 500 |
-| Batch size $b$ | 64 |
-| Learning rate | $1 \times 10^{-4}$ |
-| Discount factor $\gamma$ | 0.99 |
-| Replay buffer capacity | 200,000 |
-| Min replay size | 500 |
-| Target update frequency $K$ | 500 steps |
-| $\varepsilon_{\text{start}}$ / $\varepsilon_{\text{end}}$ / $\varepsilon_{\text{decay}}$ | 1.0 / 0.05 / 50,000 |
-| Q-Network hidden layers | [512, 256] |
-| Optimiser | Adam |
-| Gradient clip norm | 10.0 |
-| Random seed | 42 |
+| Parameter                                                                                | Value                    |
+| ---------------------------------------------------------------------------------------- | ------------------------ |
+| Number of nodes $N$                                                                      | 50                       |
+| Arena size                                                                               | 500 m × 500 m            |
+| Sink position                                                                            | (250, 250)               |
+| Sensing radius $r_s$                                                                     | 100 m                    |
+| Coverage grid resolution                                                                 | 20 × 20 points           |
+| Max steps per episode $T_{\max}$                                                         | 1000                     |
+| Death threshold $\delta$                                                                 | 0.3                      |
+| Battery capacity $E_{\max}$                                                              | 100                      |
+| Awake energy draw $e_{\text{awake}}$                                                     | 1.0                      |
+| Sleep energy draw $e_{\text{sleep}}$                                                     | 0.01                     |
+| Cycle degradation rate $k_{\text{cycle}}$                                                | $5 \times 10^{-5}$       |
+| DoD exponent $\alpha$                                                                    | 1.2                      |
+| Calendar decay $k_{\text{cal}}$                                                          | $5 \times 10^{-7}$       |
+| Charging threshold                                                                       | 0.20 (SoC fraction)      |
+| Charging rate                                                                            | 0.05 (SoC fraction/step) |
+| Cooperative wake-up SoC                                                                  | 0.50                     |
+| Training episodes                                                                        | 500                      |
+| Batch size $b$                                                                           | 64                       |
+| Learning rate                                                                            | $1 \times 10^{-4}$       |
+| Discount factor $\gamma$                                                                 | 0.99                     |
+| Replay buffer capacity                                                                   | 200,000                  |
+| Min replay size                                                                          | 500                      |
+| Target update frequency $K$                                                              | 500 steps                |
+| $\varepsilon_{\text{start}}$ / $\varepsilon_{\text{end}}$ / $\varepsilon_{\text{decay}}$ | 1.0 / 0.05 / 50,000      |
+| Q-Network hidden layers                                                                  | [512, 256]               |
+| Optimiser                                                                                | Adam                     |
+| Gradient clip norm                                                                       | 10.0                     |
+| Random seed                                                                              | 42                       |
 
 ### 5.2 Compared Methods
 
@@ -342,13 +345,13 @@ Table III summarises the final performance of DDQN-WSN versus standard DQN avera
 
 **Table III: Overall Performance Comparison**
 
-| Metric | DQN | DDQN-WSN | Improvement |
-|--------|-----|----------|-------------|
-| Mean Episode Reward | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
-| Final Coverage (%) | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
-| Mean SoH at termination | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
-| Network Lifetime (episodes) | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
-| Mean SoC at termination | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
+| Metric                        | DQN           | DDQN-WSN      | Improvement   |
+| ----------------------------- | ------------- | ------------- | ------------- |
+| Mean Episode Reward           | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
+| Final Coverage (%)            | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
+| Mean SoH at termination       | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
+| Network Lifetime (episodes)   | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
+| Mean SoC at termination       | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
 | Alive Fraction at termination | [PLACEHOLDER] | [PLACEHOLDER] | [PLACEHOLDER] |
 
 ### 6.2 Per-Metric Analysis
