@@ -9,33 +9,35 @@ A research-grade deep reinforcement learning platform for optimizing Wireless Se
 - [Key Concepts](#key-concepts)
 - [Getting Started](#getting-started)
 - [Project Structure](#project-structure)
-- [Common Tasks](#common-tasks)
-- [Configuration](#configuration)
-- [Training Guide](#training-guide)
-- [System Architecture](#system-architecture)
-- [API Reference](#api-reference)
-- [Troubleshooting](#troubleshooting)
-- [Performance Benchmarks](#performance-benchmarks)
-- [Reproducibility](#reproducibility)
-- [References](#references)
+- [Architecture & Layer Rules](#architecture--layer-rules)
+- [Configuration System](#configuration-system)
+- [RL Core & Mathematics](#rl-core--mathematics)
+- [Agents](#agents)
+- [Training Loop](#training-loop)
+- [Backend API Reference](#backend-api-reference)
+- [Frontend Details](#frontend-details)
+- [Output Artifacts & Metadata](#output-artifacts--metadata)
+- [Testing](#testing)
+- [CLI Reference](#cli-reference)
+- [Code Quality](#code-quality)
 
 ---
 
 ## Key Concepts
 
-### Double Deep Q-Network (DDQN)
+### Deep Reinforcement Learning Agents
 
-The agent uses two neural networks (policy + target) to reduce Q-value overestimation, an experience replay buffer for sample efficiency, and a decaying epsilon-greedy exploration schedule.
+- **Double Deep Q-Network (DDQN)** — The primary agent. Uses two neural networks (policy + target) to reduce Q-value overestimation via a decoupled action selection/evaluation mechanism. Includes experience replay and a decaying epsilon-greedy exploration schedule.
+- **Deep Q-Network (DQN)** — The ablation/comparison agent. Subclasses `DDQNAgent`, overriding only the Bellman target computation. Used exclusively for DDQN-vs-DQN benchmarking.
+- **Two-Agent Architecture** — The platform operates exclusively on DDQN and DQN. All hardcoded baseline policies have been removed for fairness in comparative deep learning benchmarking.
 
-### WSN Environment
+### WSN Environment (Gymnasium Compliant)
 
-Simulates N sensor nodes, each with a battery tracked by State of Charge (SoC) and State of Health (SoH). At each step the agent decides which nodes sleep or wake. The episode ends when too many nodes die (SoC < `death_threshold`). Reward balances coverage, energy efficiency, battery health, and fairness.
+Simulates N sensor nodes, each with a battery tracked by **State of Charge (SoC)** and **State of Health (SoH)**. Influenced by real-world physics:
 
-### Two-Agent Benchmarking
-
-DDQN (primary) is benchmarked exclusively against DQN (ablation). Both agents share the same
-environment, seed, and training budget so the comparison is controlled. Use
-`scripts/compare.py` or the web UI Compare tab to generate a 2×2 overlay plot.
+- Cycle-based and calendar battery degradation via the `BatteryModel`.
+- **Charging state machine** — nodes below a SoC threshold enter forced-sleep charging mode.
+- **Cooperative wake-ups** — when a low-battery node is awake, its nearest sleeping neighbor is forcefully woken for the next step.
 
 ---
 
@@ -49,7 +51,7 @@ environment, seed, and training budget so the comparison is controlled. Use
 ### Step 1: Clone and Setup
 
 ```bash
-cd m2m_ddqn
+cd WSN_M2M
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
@@ -58,124 +60,36 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 ```bash
 pip install -r requirements.txt
-```
-
-### Step 3: Configure Environment
-
-```bash
 cp .env.example .env
-# Edit .env if needed for custom settings
 ```
 
-### Step 4: Create Results Directories
+### Step 3: Create Output Directories
 
 ```bash
 mkdir -p results/models results/metrics results/visualizations logs
 ```
 
-### First Training Run
+### Step 4: Run
 
-#### Option A: Command Line (Recommended for First Run)
+**Option A — CLI Training (recommended for swept runs):**
 
 ```bash
 python scripts/train.py \
-  --episodes 10 \
+  --episodes 500 \
   --nodes 50 \
   --lr 1e-4 \
+  --gamma 0.99 \
+  --batch-size 64 \
   --seed 42 \
   --model-type ddqn
 ```
 
-**Parameters:**
-
-- `--episodes`: Number of training episodes (start small: 10-50)
-- `--nodes`: Number of sensor nodes (default: 50 from config)
-- `--lr`: Learning rate (default: 1e-4)
-- `--gamma`: Discount factor (default: 0.99)
-- `--batch-size`: Replay batch size (default: 64)
-- `--death-threshold`: Fraction of dead nodes ending an episode (default: 0.3)
-- `--seed`: Random seed for reproducibility
-- `--model-type`: `ddqn` (default) or `dqn`
-
-**Expected Output:**
-
-```
-INFO:src.utils.logger:Training configuration: ...
-INFO:src.utils.logger:Creating WSN environment with 50 nodes...
-INFO:src.utils.logger:Starting training for 10 episodes...
-Episode 1/10 - Reward: 45.32, 10-ep MA: 45.32
-...
-Training completed!
-Model saved to results/trained_model.pth
-Metrics saved to results/training_metrics.json
-```
-
-#### Option B: Web Server
+**Option B — Web Server:**
 
 ```bash
 python -m backend.app
+# Visit http://localhost:5001
 ```
-
-Then visit `http://localhost:5001` in your browser.
-
-**Form Fields:**
-
-- **Episodes**: Training episodes (1-1000)
-- **Nodes**: Number of nodes (10-10000)
-- **Learning Rate**: 0.0001 to 0.1
-- **Gamma**: 0.0 to 1.0
-
-### Understanding Results
-
-#### Generated Files
-
-After training, check `results/`:
-
-```
-results/
-├── models/run_{timestamp}_model.pth              # Neural network weights
-├── metrics/run_{timestamp}_metadata.json          # Per-run config + summary metrics
-└── visualizations/run_{timestamp}_plot.png        # Training progress plot
-```
-
-Run IDs have the format `run_YYYYMMDD_HHMMSS` (e.g. `run_20260406_080528`).
-
-#### Metrics Explained
-
-**Metrics JSON** (`run_{timestamp}_metadata.json`):
-
-```json
-{
-  "run_id": "run_20260414_080528",
-  "timestamp": "2026-04-14T08:06:10.290101",
-  "model_used": "ddqn",
-  "episodes": 10,
-  "num_nodes": 50,
-  "learning_rate": 0.0001,
-  "gamma": 0.99,
-  "death_threshold": 0.3,
-  "max": 1000,
-  "seed": 42,
-  "metrics": {
-    "mean_reward": 145.32,
-    "max_reward": 180.5,
-    "best_episode": 7,
-    "avg_final_10": 172.4,
-    "final_coverage": 0.87,
-    "final_avg_soh": 0.94,
-    "network_lifetime": 9
-  },
-  "series": { "episode_reward": [...], "coverage": [...], ... },
-  "image_url": "/api/visualizations/run_20260414_080528_plot.png"
-}
-```
-
-**Key Metrics:**
-
-- `mean_reward`: Average reward per episode (higher is better)
-- `final_coverage`: Grid coverage fraction at the last episode (0-1, higher is better)
-- `final_avg_soh`: Average battery health at the last episode (0-1, higher is better)
-- `network_lifetime`: Episode number when alive fraction first dropped below `1 - death_threshold`
 
 ---
 
@@ -183,1260 +97,592 @@ Run IDs have the format `run_YYYYMMDD_HHMMSS` (e.g. `run_20260406_080528`).
 
 ```
 WSN_M2M/
-├── config/              # config.yaml + settings singleton
-├── src/
-│   ├── agents/          # BaseAgent, DDQNAgent, DQNAgent
-│   ├── envs/            # WSNEnv (Gymnasium), BatteryModel
-│   ├── training/        # Trainer (training loop)
-│   └── utils/           # logging, metrics, visualization
-├── backend/             # Flask API (app.py, routes.py, tasks.py, schemas.py)
-├── frontend/            # templates/index.html + static/ (CDN-based, no build step)
+├── config/
+│   ├── config.yaml          — YAML source for all hyperparameters and paths
+│   └── settings.py          — Dataclass config + get_config() singleton
+│
+├── src/                     — Pure RL core (no Flask, no HTTP, no file I/O)
+│   ├── agents/
+│   │   ├── base_agent.py    — BaseAgent ABC (strategy interface for Trainer)
+│   │   ├── ddqn_agent.py    — DDQNAgent: policy + target net, decoupled Bellman target
+│   │   └── dqn_agent.py     — DQNAgent: subclass of DDQNAgent, ablation only
+│   ├── envs/
+│   │   ├── wsn_env.py       — Gymnasium WSNEnv: SLEEP/AWAKE per-node actions
+│   │   └── battery_model.py — SoC/SoH dynamics, cycle + calendar degradation
+│   ├── training/
+│   │   └── trainer.py       — Episode loop orchestrator
+│   └── utils/
+│       ├── logger.py
+│       ├── metrics.py
+│       └── visualization.py
+│
+├── backend/                 — Flask REST API layer
+│   ├── app.py               — Flask app factory (create_app)
+│   ├── routes.py            — All route handlers, registered as blueprint api_bp
+│   ├── schemas.py           — Marshmallow request validation schemas
+│   └── tasks.py             — Sync/async training execution + comparison logic
+│
+├── frontend/                — Zero-build-step single-page UI
+│   ├── templates/
+│   │   └── index.html       — SPA entry point (Tailwind via CDN)
+│   └── static/
+│       ├── js/app.js        — All client-side logic (vanilla JS, no framework)
+│       └── css/style.css    — Micro-adjustments layered on Tailwind
+│
 ├── scripts/
-│   ├── train.py         # CLI training wrapper (same artifacts as web API)
-│   └── compare.py       # CLI DDQN-vs-DQN comparison report
-├── tests/               # pytest suite
-└── results/             # Generated output (gitignored)
-    ├── models/          # run_{timestamp}_model.pth
-    ├── metrics/         # run_{timestamp}_metadata.json
-    └── visualizations/  # run_{timestamp}_plot.png, compare_*_vs_*.png
+│   ├── train.py             — CLI training entry point
+│   └── compare.py           — CLI comparison plot generator
+│
+├── tests/
+│   ├── conftest.py          — Shared fixtures + config singleton reset
+│   ├── test_agent.py        — DDQNAgent / DQNAgent unit tests
+│   ├── test_env.py          — WSNEnv / BatteryModel tests
+│   └── test_backend.py      — Flask route tests (test_client)
+│
+├── results/
+│   ├── models/              — Saved .pth model checkpoints
+│   ├── metrics/             — Per-run metadata JSON files
+│   └── visualizations/      — Training plots and comparison PNGs
+│
+└── logs/                    — Runtime training logs
 ```
 
 ---
 
-## Common Tasks
+## Architecture & Layer Rules
 
-| Task | Command |
-|------|---------|
-| Train DDQN (CLI) | `python scripts/train.py --episodes 500 --nodes 50 --seed 42 --model-type ddqn` |
-| Train DQN (CLI) | `python scripts/train.py --episodes 500 --nodes 50 --seed 42 --model-type dqn` |
-| Compare runs (CLI) | `python scripts/compare.py` (auto-picks most recent DDQN + DQN) |
-| Compare specific runs | `python scripts/compare.py --run-a <id> --run-b <id>` |
-| Web dashboard | `python -m backend.app` → http://localhost:5001 |
-| Run tests | `pytest tests/ -v` |
-| Format code | `black src/ backend/` |
-| Lint | `flake8 src/ backend/` |
-| Type-check | `mypy src/ --ignore-missing-imports` |
+The repository is strictly layered to prevent circular dependencies. Upward imports are **prohibited** — `src/` has zero knowledge of Flask, HTTP, or the frontend.
 
----
-
-## Configuration
-
-All settings in [`config/config.yaml`](config/config.yaml):
-
-```yaml
-training:
-  episodes: 100
-  batch_size: 64
-  learning_rate: 1.0e-4
-  gamma: 0.99
-
-environment:
-  num_nodes: 550
-  arena_size: [500, 500]
-  sink_position: [250, 250]
-  max_steps: 1000
-  death_threshold: 0.3
+```
+frontend/          → display only; no business logic
+      ↓ HTTP/JSON
+backend/routes.py  → HTTP boundary: validate input, call tasks.py, return JSON
+backend/tasks.py   → execution engine: construct env/agent, run Trainer, write artifacts
+      ↓ Python
+src/training/      → training loop only; no I/O, no Flask, no path construction
+src/agents/        → Q-network math + replay buffer; no env knowledge
+src/envs/          → simulation physics; no agent knowledge
+config/            → read-only after startup; no side effects
 ```
 
-Override any value via CLI flags or the web form — CLI flags take precedence over the YAML.
+### Design Patterns
 
-### Change Training Parameters
+| Pattern | Where | Rule |
+|---------|-------|------|
+| Strategy | `BaseAgent` + agent subclasses | All agents must subclass `BaseAgent`; `Trainer` only calls the abstract interface |
+| Singleton | `get_config()` | Import config once via `get_config()`; never instantiate `Config` directly |
+| Factory | `create_app()` in `backend/app.py` | Flask app always created via `create_app()`; `app.run()` only in `__main__` |
+| Composition | `Trainer` composes `agent + env` | `Trainer` owns the loop; agents and envs do not call each other |
 
-Edit `config/config.yaml`:
+### Data Flow — Training
 
-```yaml
-training:
-  episodes: 200 # More episodes
-  batch_size: 128 # Larger batches
-  learning_rate: 5e-5 # Lower learning rate
+```
+HTTP POST /api/train
+  → schemas.py validates + applies defaults
+  → tasks.run_training() constructs WSNEnv, DDQNAgent/DQNAgent, Trainer
+  → Trainer.train() runs episodes
+  → artifacts written: {run_id}_model.pth, {run_id}_plot.png, {run_id}_metadata.json
+  → JSON response returned to frontend
 ```
 
-### Change Environment
+### Data Flow — Async Training
 
-Edit `config/config.yaml`:
-
-```yaml
-environment:
-  num_nodes: 1000 # More nodes
-  max_steps: 20000 # Longer episodes
-  death_threshold: 0.5 # End when 50% dead
 ```
-
-### Custom Agent Architecture
-
-Edit `src/agents/ddqn_agent.py`:
-
-```python
-agent = DDQNAgent(
-    ...,
-    hidden_dims=[1024, 512, 256],  # Deeper network
-    lr=1e-5,                         # Lower learning rate
-)
+HTTP POST /api/train/async
+  → schemas.py validates
+  → tasks.submit_training_task() spawns daemon thread → returns task_id (UUID)
+  → client polls GET /api/tasks/<task_id> for { status: "queued"|"running"|"completed"|"failed" }
+  → on completion, result is identical to sync flow
 ```
 
 ---
 
-## Training Guide
+## Configuration System
 
-### Training Modes
-
-#### 1. Command Line Training (Recommended)
-
-Best for reproducible, parameter-swept training runs.
-
-```bash
-python scripts/train_model.py [OPTIONS]
-```
-
-**Common Options:**
-
-```bash
-# Quick test run
-python scripts/train_model.py --episodes 10 --nodes 50
-
-# Full training
-python scripts/train_model.py --episodes 500 --nodes 50 --seed 42
-
-# Custom hyperparameters
-python scripts/train_model.py \
-  --episodes 200 \
-  --nodes 50 \
-  --lr 5e-5 \
-  --gamma 0.995 \
-  --batch-size 32 \
-  --seed 123
-```
-
-**Output:**
-
-- `results/models/run_{timestamp}_model.pth` - Neural network weights
-- `results/metrics/run_{timestamp}_metadata.json` - Per-run config + summary metrics
-- `results/visualizations/run_{timestamp}_plot.png` - Training progress plot
-
-#### 2. Web Interface Training
-
-Best for interactive exploration and non-technical users.
-
-```bash
-python -m backend.app
-# Visit http://localhost:5001
-```
-
-**Advantages:**
-
-- Visual form for parameters
-- Real-time progress updates
-- Download results directly
-- No command line needed
-
-**Disadvantages:**
-
-- Slower for multiple runs
-- No easy parameter sweep
-- Session-based (loses progress if connection drops)
-
-#### 3. Programmatic Training
-
-Best for custom workflows and research.
-
-```python
-from src.agents.ddqn_agent import DDQNAgent
-from src.envs.wsn_env import WSNEnv
-from src.training.trainer import Trainer
-from config.settings import get_config
-
-config = get_config()
-
-# Create environment
-env = WSNEnv(
-    N=50,
-    max_steps=1000,
-    seed=42,
-)
-
-# Create agent
-agent = DDQNAgent(
-    state_dim=env.observation_space.shape[0],
-    action_dim=2,
-    node_count=50,
-    lr=1e-4,
-    gamma=0.99,
-    batch_size=64,
-)
-
-# Create trainer
-trainer = Trainer(agent, env)
-
-# Train
-rewards, metrics = trainer.train(episodes=100)
-
-# Evaluate
-eval_rewards, eval_metrics = trainer.evaluate(episodes=10)
-
-# Save
-trainer.save_checkpoint('results/my_model.pth')
-```
-
-### Training Workflow
-
-#### Step 1: Configuration
-
-Before training, decide on hyperparameters:
-
-| Parameter     | Typical Range | Notes                                           |
-| ------------- | ------------- | ----------------------------------------------- |
-| Episodes      | 50-1000       | More = better learning but longer training      |
-| Learning Rate | 1e-5 to 1e-3  | Too high = instability, too low = slow learning |
-| Gamma         | 0.95-0.99     | Higher = agent plans further ahead              |
-| Batch Size    | 32-256        | Larger = more stable gradients                  |
-| Nodes         | 50-1000       | Larger = harder learning problem                |
-
-**Quick Recommendation:**
-
-```bash
-python scripts/train_model.py \
-  --episodes 100 \
-  --nodes 100 \
-  --lr 1e-4 \
-  --gamma 0.99 \
-  --batch-size 64
-```
-
-#### Step 2: Start Training
-
-```bash
-python scripts/train_model.py --episodes 100 --nodes 50 --seed 42
-```
-
-**Monitor Progress:**
-
-- Watch for increasing rewards over time
-- 10-episode moving average should increase
-- ~5-10 minutes per 100 episodes on CPU
-
-#### Step 3: Check Results
-
-```bash
-# View metrics (use the actual run_id from your training output)
-cat results/metrics/run_{timestamp}_metadata.json
-```
-
-#### Step 4: Evaluate Model
-
-```bash
-python scripts/evaluate_baselines.py --model results/models/trained_model_ddqn.pth
-```
-
-**Outputs:**
-
-- Mean reward vs baselines
-- Coverage comparison
-- Energy efficiency metrics
-
-### Hyperparameter Tuning
-
-#### Grid Search
-
-Try multiple parameter combinations:
-
-```bash
-#!/bin/bash
-for lr in 1e-5 1e-4 1e-3; do
-  for gamma in 0.95 0.99; do
-    python scripts/train_model.py \
-      --episodes 100 \
-      --lr $lr \
-      --gamma $gamma \
-      --output-dir results/lr_${lr}_gamma_${gamma}
-  done
-done
-```
-
-#### Manual Tuning Guidelines
-
-**Learning Rate is too high if:**
-
-- Loss spikes randomly
-- Rewards oscillate wildly
-- Training becomes unstable
-
-**Solution:** Reduce to 1e-5
-
-**Learning Rate is too low if:**
-
-- Rewards increase very slowly
-- Training takes forever
-- Loss stays high
-
-**Solution:** Increase to 1e-3
-
-**Gamma (discount factor) tuning:**
-
-- Gamma = 0.95: Agent focuses on immediate rewards
-- Gamma = 0.99: Agent plans further ahead
-- Gamma = 0.999: Very long-term planning
-
-**Batch Size tuning:**
-
-- Small (8-16): Faster training, noisier updates
-- Large (128-256): Stable gradients, slower
-
-### Advanced Training
-
-#### Continue Training from Checkpoint
-
-```python
-agent = DDQNAgent(...)
-agent.load_model('results/trained_model.pth')
-
-trainer = Trainer(agent, env)
-rewards, metrics = trainer.train(episodes=100)  # Train 100 more
-trainer.save_checkpoint('results/trained_model_v2.pth')
-```
-
-#### Custom Reward Function
-
-Modify `src/envs/wsn_env.py` step() method:
-
-```python
-# Default
-reward = 10.0 * r_coverage + 5.0 * r_energy + 1.0 * r_soh + 2.0 * r_balance
-
-# Custom: prioritize coverage more
-reward = 15.0 * r_coverage + 3.0 * r_energy + 1.0 * r_soh + 1.0 * r_balance
-
-# Custom: prioritize energy efficiency
-reward = 5.0 * r_coverage + 10.0 * r_energy + 1.0 * r_soh + 1.0 * r_balance
-```
-
-#### Distributed Training (Parallel Seeds)
-
-```bash
-#!/bin/bash
-for seed in 42 123 456; do
-  python scripts/train_model.py \
-    --episodes 100 \
-    --seed $seed \
-    --output-dir results/seed_$seed &
-done
-wait
-```
-
-Then aggregate results:
-
-```python
-import json
-import numpy as np
-from pathlib import Path
-
-results = []
-for seed_dir in Path('results').glob('seed_*'):
-    with open(seed_dir / 'training_metrics.json') as f:
-        results.append(json.load(f))
-
-mean_reward = np.mean([r['training']['mean_reward'] for r in results])
-std_reward = np.std([r['training']['mean_reward'] for r in results])
-print(f"Mean Reward: {mean_reward:.2f} ± {std_reward:.2f}")
-```
-
-### Best Practices
-
-1. **Use meaningful output directories:**
-   ```bash
-   --output-dir results/experiment_name
-   ```
-
-2. **Log your experiments:**
-   ```bash
-   tee results/experiment.log >>(python scripts/train_model.py ...)
-   ```
-
-3. **Version your code:**
-   ```bash
-   git commit "WIP: Testing lr=1e-5"
-   ```
-
-4. **Keep configs separate:**
-   ```bash
-   cp config/config.yaml config/config.baseline.yaml
-   # Edit config.yaml for experiment
-   ```
-
-5. **Always evaluate baselines:**
-   ```bash
-   python scripts/evaluate_baselines.py
-   ```
-
----
-
-## System Architecture
-
-### High-Level Design
-
-```
-┌────────────────────────────────────────────────────────────────┐
-│                      Frontend (Web UI)                         │
-│                   templates/, static/                          │
-└────────────────────────┬─────────────────────────────────────┘
-                         │ HTTP/JSON
-┌────────────────────────▼─────────────────────────────────────┐
-│                    Backend (Flask API)                        │
-│              backend/routes.py, backend/app.py                │
-└────────────────────────┬─────────────────────────────────────┘
-                         │ Python
-┌────────────────────────▼─────────────────────────────────────┐
-│                 Training Controller                           │
-│             src/training/trainer.py                           │
-└────────────────────┬───────────────────┬─────────────────────┘
-                     │                   │
-        ┌────────────▼──┐        ┌───────▼────────┐
-        │   RL Agent    │        │  Environment   │
-        │ src/agents/   │        │  src/envs/     │
-        │ ddqn_agent.py │        │  wsn_env.py    │
-        └───────────────┘        └────────────────┘
-                     │                   │
-        ┌────────────▼──┐        ┌───────▼────────┐
-        │  Q-Networks   │        │  Battery Model │
-        │  (PyTorch)    │        │  Physics Sim   │
-        └───────────────┘        └────────────────┘
-```
-
-### Core Modules
-
-#### 1. config/ - Configuration Management
-
-**Files:**
-
-- `config.yaml` - YAML configuration file
-- `settings.py` - Configuration loader and validation
-- `logging_config.yaml` - Logging setup
-
-**Usage:**
+All settings are read from `config/config.yaml` through dataclasses in `config/settings.py`. Access is always via the singleton:
 
 ```python
 from config.settings import get_config
-config = get_config()
-print(config.training.episodes)  # Access settings via attributes
+config = get_config()   # thread-safe singleton; safe to call multiple times
 ```
+
+Never instantiate `Config` directly. In Flask route handlers, use `current_app.config.get("CONFIG")` instead of calling `get_config()` directly.
+
+### Config Structure
+
+**Training** (`config.training.*`)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `episodes` | 100 | Total training episodes |
+| `batch_size` | 64 | Replay buffer sample size |
+| `learning_rate` | 1e-4 | Adam optimizer LR |
+| `gamma` | 0.99 | Discount factor |
+| `epsilon_start` | 1.0 | Initial exploration rate |
+| `epsilon_end` | 0.01 | Minimum exploration rate |
+| `epsilon_decay` | 10000 | Steps over which epsilon decays |
+| `target_update_frequency` | 100 | Steps between target network syncs |
+| `replay_buffer_size` | 50000 | Maximum transitions in buffer |
+| `min_replay_size` | 1000 | Steps before learning starts |
+
+**Environment** (`config.environment.*`)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `num_nodes` | 50 | Number of sensor nodes |
+| `arena_size` | [500, 500] | Physical arena in metres |
+| `sink_position` | [250, 250] | Sink node coordinates |
+| `max_steps` | 1000 | Steps per episode |
+| `death_threshold` | 0.3 | Dead-node fraction that ends an episode |
+| `seed` | 42 | RNG seed (controls positions, weights, noise) |
+| `sensing_radius` | 50.0 | Node sensing radius for coverage grid (metres) |
+| `timestep_energy_awake` | 1.0 | Energy drained per step when AWAKE |
+| `energy_sleep` | 0.01 | Energy drained per step when SLEEP |
+
+**Reward Weights** (`config.environment.reward_weights.*`)
+
+| Key | Default |
+|-----|---------|
+| `coverage` | 10.0 |
+| `energy` | 5.0 |
+| `soh` | 1.0 |
+| `balance` | 2.0 |
+
+**Charging** (`config.environment.charging.*`)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | true | Master toggle |
+| `rate` | 0.05 | SoC fraction recovered per step while charging |
+| `threshold` | 0.2 | SoC below which a node enters charging; exits at SoC ≥ 0.95 |
+
+**Cooperative Wake-Up** (`config.environment.wake_cooperation.*`)
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `low_battery_soc` | 0.5 | SoC fraction at which a node's nearest sleeping neighbor is force-woken |
+
+**Paths** (`config.paths.*`)
+
+| Key | Value |
+|-----|-------|
+| `models` | `"results/models"` |
+| `metrics` | `"results/metrics"` |
+| `visualizations` | `"results/visualizations"` |
+| `logs` | `"logs"` |
+
+> `config.paths.*` values are **relative strings**, not `Path` objects. Always wrap with `Path()` before joining. In `backend/`, use the `_abs()` helper to anchor to project root regardless of CWD.
 
 ---
 
-#### 2. src/agents/ - Reinforcement Learning Agents
+## RL Core & Mathematics
 
-**Files:**
+### Observation Space
 
-- `base_agent.py` - Abstract base class defining agent interface
-- `ddqn_agent.py` - Double Deep Q-Network implementation (policy + target networks)
-- `dqn_agent.py` - Single-network DQN implementation (for ablation comparisons)
+**6 features per node**, flattened into a shape `(N * 6,)` array (`state_dim = 300` for 50 nodes):
 
-**Design Pattern:** Strategy pattern via base class
+| Index (per node) | Feature | Range |
+|-----------------|---------|-------|
+| 0 | State of Charge (SoC, normalized) | [0, 1] |
+| 1 | State of Health (SoH) | [0, 1] — never dynamically recovers |
+| 2 | `last_action` | {0, 1} |
+| 3 | `distance_to_sink` (normalized) | [0, 1] |
+| 4 | `activity_ratio` (EMA) | [0, 1] |
+| 5 | `charging_flag` | {0, 1} |
 
-**Key Classes:**
+Always derive `state_dim` from the env: `state_dim = env.observation_space.shape[0]`. Never hardcode.
 
-- `BaseAgent` - Abstract interface
-- `DDQNAgent` - Concrete DDQN implementation with:
-  - `select_action()` - Epsilon-greedy policy
-  - `store_transition()` - Experience replay buffer
-  - `learn_step()` - Training update
-  - `save_model()` / `load_model()` - Persistence
+### Action Space
 
-**Architecture:**
+Per-node binary: `{SLEEP=0, AWAKE=1}`. The agent outputs an action vector of length `N`.
+
+### Reward Function
 
 ```
-DDQNAgent
-├── Q-Network (policy)
-├── Target Network
-├── Replay Buffer (experience)
-├── Optimizer (Adam)
-└── Epsilon schedule (exploration)
+reward = (10.0 × r_coverage) + (5.0 × r_energy) + (1.0 × r_soh) + (2.0 × r_balance)
 ```
 
----
+All components are positive-encouraging factors to combat gradient saturation:
 
-#### 3. src/envs/ - Environment Simulation
+| Component | Description |
+|-----------|-------------|
+| `r_coverage` | Fraction of grid cells within sensing radius of at least one AWAKE node |
+| `r_energy` | Normalized energy efficiency (lower drain = higher score) |
+| `r_soh` | Average battery health (SoH) across all nodes |
+| `r_balance` | Fairness metric (low std of SoC levels across nodes) |
 
-**Files:**
+### BatteryModel
 
-- `battery_model.py` - Battery physics simulation
-- `wsn_env.py` - Gym-compatible WSN environment
+Located in `src/envs/battery_model.py`. Tracks SoC and SoH per node.
 
-**Key Classes:**
+- SoH degrades via **cycle-based + calendar degradation** — it does **not** recover.
+- A node is dead when `SoC <= 0.01` or `SoH <= 0.05`.
+- An episode ends when `dead_nodes > death_threshold × N`.
 
-**BatteryModel:**
+### Environment API
 
 ```python
-- discharge(energy) - Drain battery
-- charge(energy) - Charge battery
-- is_dead() - Check if failed
+# Gymnasium-compliant
+state, info = env.reset()                              # returns (obs, info) — 2 values
+next_state, reward, done, info = env.step(action)      # returns 4 values — no truncation flag
 ```
 
-**WSNEnv (Gym.Env):**
-
-- `reset()` - Initialize episode
-- `step(action)` - Execute one simulation step
-- `observation_space` - State shape
-- `action_space` - Action shape
-
-**Reward Function:**
-
-```
-reward = 10.0 * r_coverage + 5.0 * r_energy + 1.0 * r_soh + 2.0 * r_balance
-
-Where (all terms are positive-good, clipped to bounded ranges):
-- r_coverage = fraction of nodes awake [0, 1]
-- r_energy   = -normalized_energy_usage (inverted so lower drain → higher score)
-- r_soh      = average battery health [−1, 1]
-- r_balance  = fairness penalty, −std of charge levels [−1, 0]
-
-A heavy penalty of −10 is applied if the network fails (too many dead nodes).
-```
-
----
-
-#### 4. src/baselines/ - Reference Policies
-
-**Policies:**
-
-1. **RandomPolicy** - Random decisions
-2. **GreedyPolicy** - Wake highest (SoC × SoH) nodes
-3. **EnergyConservativePolicy** - Minimize energy (wake only best nodes)
-4. **BalancedRotationPolicy** - Rotate awake sets periodically
-
-**Design:** All inherit from `BaseAgent` for consistent interface
-
----
-
-#### 5. src/training/ - Training Loop
-
-**Files:**
-
-- `trainer.py` - Generic training orchestrator
-
-**Key Methods:**
-
-- `train(episodes)` - Supervised training loop
-- `evaluate(episodes)` - Evaluation without learning
-- `_run_episode()` - Single episode execution
-- `save_checkpoint()` / `load_checkpoint()` - Persistence
-
-**Workflow:**
+**`info` dict per step:**
 
 ```python
-trainer = Trainer(agent, env)
-rewards, metrics = trainer.train(episodes=100)
-trainer.save_checkpoint('models/best.pth')
-```
-
----
-
-#### 6. src/utils/ - Utilities
-
-**logger.py:**
-
-- Structured logging via YAML configuration
-- Automatic file and console output
-- Log levels per module
-
-**metrics.py:**
-
-- `compute_episode_metrics()` - Per-episode stats
-- `aggregate_metrics()` - Multi-episode aggregation
-- `compute_lifetime_metrics()` - Network lifetime
-
-**visualization.py:**
-
-- `save_metrics_json()` - Metric persistence
-- `plot_training_curve()` - matplotlib plots
-- `plot_comparison()` - Baseline comparison charts
-
----
-
-#### 7. backend/ - Web Server (Flask)
-
-**Files:**
-
-- `app.py` - Flask app factory
-- `routes.py` - API endpoints
-- `schemas.py` - Input validation (marshmallow)
-- `tasks.py` - Sync/async training execution and baseline benchmark logic
-
-**Architecture:**
-
-- **app.py**: Creates Flask app instance, registers blueprints
-- **routes.py**: REST endpoints
-- **schemas.py**: Marshmallow schemas for validation
-
-**Request Flow:**
-
-```
-HTTP Request
-    ↓
-Schemas.py (Validation)
-    ↓
-routes.py (Handler)
-    ↓
-Trainer + Agent + Environment
-    ↓
-Results saved to results/
-    ↓
-HTTP Response JSON
-```
-
----
-
-#### 8. scripts/ - CLI Tools
-
-- `train_model.py` - Standalone training from CLI
-- `evaluate_baselines.py` - Benchmark against reference policies
-- `generate_report.py` - Generate research report from saved metrics JSON
-- `migrate_legacy_runs.py` - Migrate pre-run_id artifacts into the `run_{timestamp}_*` naming scheme (safe, idempotent)
-
----
-
-#### 9. frontend/ - Web UI
-
-```
-frontend/
-├── templates/
-│   └── index.html
-└── static/
-    ├── css/style.css
-    ├── js/app.js
-    └── images/
-```
-
-### Data Flow
-
-#### Training Cycle
-
-```
-1. User Request (Web/CLI)
-           ↓
-2. Config Load → Validation
-           ↓
-3. Environment Reset
-           ↓
-4. Agent Selects Action (Epsilon-greedy)
-           ↓
-5. Env Step → Reward, Done, Next State
-           ↓
-6. Store Transition (Replay Buffer)
-           ↓
-7. Sample Batch from Replay Buffer
-           ↓
-8. Compute Q-targets (DDQN logic)
-           ↓
-9. Backward Pass → Update Networks
-           ↓
-10. Update Target Network (periodic)
-           ↓
-11. Continue or End Episode
-           ↓
-12. Save Metrics & Visualizations
-```
-
-### Dependency Graph
-
-```
-Agent (DDQN)
-├── Base Agent
-├── Replay Buffer
-├── Q-Networks (PyTorch)
-└── Optimizer
-
-Environment (WSN)
-├── Battery Model
-└── Reward Function
-
-Trainer
-├── Agent interface
-├── Environment interface
-└── Metrics utils
-
-Backend
-├── Trainer
-├── Config
-└── Validation (Schemas)
-
-Scripts
-├── Trainer
-├── Agent
-├── Environment
-├── Baselines
-└── Utils
-```
-
-### Design Patterns Used
-
-1. **Strategy Pattern**: BaseAgent with multiple implementations
-2. **Factory Pattern**: `create_app()` in backend
-3. **Singleton Pattern**: `get_config()` for global configuration
-4. **Observer Pattern**: Trainer callbacks (extensible)
-5. **Composition**: Trainer composes Agent + Environment
-
-### Extension Points
-
-**Add New Agent:** Inherit from `BaseAgent`, implement required methods, register in training pipeline.
-
-**Add New Baseline:** Inherit from `BaseAgent`, implement `select_action()`, add to baselines registry.
-
-**Add New Environment:** Inherit from `gym.Env`, implement `step()` and `reset()`, define observation/action spaces.
-
-**Add New Metric:** Add function to `src/utils/metrics.py`, call from `Trainer._run_episode()`, aggregate in post-training analysis.
-
-### Testing Strategy
-
-- **Unit Tests**: Test agents in isolation, environment dynamics, utility functions
-- **Integration Tests**: Test trainer with agents/envs, Flask endpoints, config loading
-- **Regression Tests**: Compare benchmarks against baselines, validate reward calculations
-
-### Future Improvements
-
-1. **Distributed Training**: Use Ray or Horovod for parallel agents
-2. **Hyperparameter Tuning**: Integrate Optuna or Ray Tune
-3. **Model Zoo**: Pre-trained models for different scenarios
-4. **Live Monitoring**: Real-time dashboard with TensorBoard/Weights&Biases
-5. **Multi-Agent RL**: Decentralized agent training
-6. **Transfer Learning**: Domain adaptation across network sizes
-
----
-
-## API Reference
-
-All endpoints are at `/api/` base path. Currently no authentication required.
-
-### API Overview
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/train` | Start training (blocking) |
-| POST | `/train/async` | Start training (non-blocking, returns `task_id`) |
-| GET | `/tasks/<task_id>` | Poll async job status |
-| GET | `/history` | List all training runs, newest first |
-| POST | `/evaluate` | Run baseline benchmark for a `run_id` |
-| GET | `/config` | Current configuration |
-| GET | `/health` | Health check |
-
-### GET /api/health
-
-Health check endpoint to verify server is running.
-
-**Response:**
-
-```json
 {
-  "status": "healthy"
+    "coverage":          float,   # grid coverage fraction (0–1)
+    "avg_soh":           float,   # mean SoH across all nodes
+    "alive_fraction":    float,   # fraction of nodes still alive
+    "dead_count":        int,     # count of dead nodes this step
+    "mean_soc":          float,   # mean normalized SoC across all nodes
+    "cooperative_wakes": list,    # node IDs woken by cooperative rule this step
+    "charging_count":    int,     # number of nodes currently charging
+    "step_count":        int,     # current step within the episode
 }
 ```
 
-**Status Code:** 200
+---
 
-```bash
-curl http://localhost:5001/api/health
+## Agents
+
+### BaseAgent (Abstract Interface)
+
+All agents implement:
+
+```python
+select_action(state, eval_mode=False) -> np.ndarray   # action vector length N
+store_transition(state, action, reward, next_state, done)
+learn_step()                                           -> Optional[float]  # loss or None
+save_model(path: str)
+load_model(path: str)
 ```
+
+Pass `eval_mode=True` during evaluation to disable epsilon-greedy exploration.
+
+### DDQNAgent — Primary Agent
+
+| Property | Detail |
+|----------|--------|
+| Networks | `q_net` (policy) + `target_net` — synced every `target_update_frequency` steps |
+| Bellman target | `a* = argmax Q_online(s', a)` then `y = r + γ × Q_target(s', a*) × (1–done)` |
+| Replay buffer | Circular, capacity `replay_buffer_size`; learning is a no-op until `min_replay_size` reached |
+| Exploration | Epsilon-greedy from `epsilon_start` → `epsilon_end` over `epsilon_decay` steps |
+| Gradient clipping | Clip norm `10.0` applied in `learn_step()` |
+
+### DQNAgent — Ablation/Comparison Agent
+
+Subclass of `DDQNAgent` that overrides only the target computation:
+
+```
+y = r + γ × max_a Q_target(s', a) × (1–done)
+```
+
+Used exclusively for DDQN-vs-DQN comparison graphs. All API calls default to `"ddqn"`.
 
 ---
 
-### GET /api/config
+## Training Loop
 
-Retrieve current configuration.
+`src/training/trainer.py` — the `Trainer` class orchestrates the per-episode loop:
 
-**Response:**
+```python
+trainer = Trainer(agent, env, seed=42)
+rewards, metrics = trainer.train(episodes=100)   # returns (list[float], dict)
+trainer.save_checkpoint(path)                    # saves agent weights
+```
 
-```json
-{
-  "training": {
-    "episodes": 100,
-    "batch_size": 64,
-    "learning_rate": 0.0001,
-    "gamma": 0.99
-  },
-  "environment": {
-    "num_nodes": 50,
-    "arena_size": [500, 500],
-    "max_steps": 1000
-  },
-  "paths": {
-    "models": "results/models",
-    "metrics": "results/metrics"
-  }
+**Per-episode series** (populated during `train()`):
+
+```python
+trainer.episode_series = {
+    "episode_reward":  [...],
+    "coverage":        [...],
+    "avg_soh":         [...],
+    "alive_fraction":  [...],
+    "mean_soc":        [...],
+    "step_counts":     [...],
 }
+trainer.network_lifetime   # int: episode where alive_fraction first dropped below (1 - death_threshold)
 ```
 
-**Status Code:** 200
+The loop per episode: `select_action()` → `env.step()` → `store_transition()` → `learn_step()`. Logs every 10 episodes; saves `.pth` checkpoints and metrics JSON at the end.
 
-```bash
-curl http://localhost:5001/api/config
-```
+### Hyperparameter Ranges
+
+| Parameter | Safe Range | Notes |
+|-----------|-----------|-------|
+| `learning_rate` | 1e-5 – 1e-3 | Start at 1e-4; reduce if loss spikes |
+| `gamma` | 0.95 – 0.99 | 0.99 = longer-horizon planning |
+| `batch_size` | 32 – 256 | Larger = more stable, slower per step |
+| `episodes` | 50 – 1000 | 50-node default trains fast on CPU |
 
 ---
 
-### POST /api/train
+## Backend API Reference
 
-Start training a new model (blocks until complete).
+Flask REST API with Marshmallow schemas for strict payload validation. App factory: `create_app()` in `backend/app.py`. All routes are registered on the `api_bp` blueprint at the `/api` prefix.
 
-**Request Body:**
+### Endpoints
 
-```json
-{
-  "episodes": 100,
-  "nodes": 50,
-  "model_type": "ddqn",
-  "learning_rate": 0.0001,
-  "gamma": 0.99,
-  "batch_size": 64,
-  "seed": 42
-}
+| Endpoint | Method | Mode | Purpose |
+|----------|--------|------|---------|
+| `/api/health` | GET | sync | Basic health check |
+| `/api/config` | GET | sync | Returns runtime server configuration |
+| `/api/train` | POST | **blocking** | Runs training; connection stays open until complete |
+| `/api/train/async` | POST | non-blocking | Forks to daemon thread; returns `task_id` immediately |
+| `/api/tasks/<task_id>` | GET | sync | Poll in-memory task status |
+| `/api/history` | GET | sync | List all training runs, newest first |
+| `/api/compare?a=<id>&b=<id>` | GET | sync | Generate DDQN-vs-DQN comparison PNG on-the-fly |
+| `/api/results/<path>` | GET | sync | Serve metrics JSON files |
+| `/api/visualizations/<path>` | GET | sync | Serve visualization PNGs |
+
+> `/api/evaluate` does not exist — baseline benchmarking was removed entirely.
+
+### Task Lifecycle
+
+```
+POST /api/train/async → { "task_id": "<uuid>" }
+GET  /api/tasks/<id>  → { "status": "queued" | "running" | "completed" | "failed" }
+                       → { "status": "not_found", "task_id": "..." }  (404 on restart)
 ```
 
-| Field         | Type  | Default | Range        |
-| ------------- | ----- | ------- | ------------ |
-| episodes      | int   | 100     | 1-10000      |
-| nodes         | int   | 50      | 10-10000     |
-| model_type    | str   | ddqn    | dqn or ddqn  |
-| learning_rate | float | 1e-4    | 1e-6 to 1e-1 |
-| gamma         | float | 0.99    | 0.0-1.0      |
-| batch_size    | int   | 64      | 8-512        |
-| seed          | int   | 42      | any int      |
+Task state is **in-memory only** — lost on server restart.
 
-**Response (Success):**
+### Request Validation
 
-```json
-{
-  "status": "success",
-  "message": "Training completed successfully with DDQN.",
-  "episodes": 100,
-  "nodes": 50,
-  "model_type": "ddqn",
-  "mean_reward": 145.32,
-  "max_reward": 180.5,
-  "results": {
-    "best_lifetime": 180.5,
-    "best_episode": 73,
-    "avg_lifetime_final_10": 172.4
-  },
-  "model_path": "results/models/run_20260406_080528_model.pth"
-}
+Every route with a body validates through a Marshmallow schema (`backend/schemas.py`):
+
+```python
+schema = TrainingRequestSchema()
+try:
+    params = schema.load(request.json or {})
+except ValidationError as e:
+    return jsonify({"status": "error", "message": str(e.messages)}), 400
 ```
 
-- `results.best_episode` is the 1-based episode number where the maximum reward occurred.
-- `results.avg_lifetime_final_10` is the average reward over the last up to 10 episodes.
+**`TrainingRequestSchema` defaults:**
 
-**Response (Error):**
+| Field | Default | Notes |
+|-------|---------|-------|
+| `episodes` | 100 | |
+| `nodes` | `None` | Resolved at runtime as `params.get("nodes") or config.environment.num_nodes` (50) |
+| `learning_rate` | 1e-4 | |
+| `gamma` | 0.99 | |
+| `batch_size` | 64 | |
+| `death_threshold` | 0.3 | |
+| `max_steps` | 1000 | |
+| `seed` | 42 | |
+| `model_type` | `"ddqn"` | Only `"ddqn"` and `"dqn"` are accepted |
 
-```json
-{
-  "status": "error",
-  "message": "Invalid batch_size: must be >= 8"
-}
-```
-
-**Status Code:** 200 (success), 400 (bad request), or 500 (server error)
-
-```bash
-curl -X POST http://localhost:5001/api/train \
-  -H "Content-Type: application/json" \
-  -d '{
-    "episodes": 50,
-    "nodes": 100,
-    "model_type": "dqn",
-    "learning_rate": 0.0001
-  }'
-```
-
----
-
-### POST /api/train/async
-
-Start training without blocking. Returns a `task_id` immediately; poll for status.
-
-**Request Body:** Same fields as `POST /api/train`.
-
-**Response:**
+### Response Shape
 
 ```json
-{ "task_id": "550e8400-e29b-41d4-a716-446655440000" }
-```
+// Success
+{ "status": "success", "run_id": "run_YYYYMMDD_HHMMSS", ... }
 
-**Status Code:** 202
+// Error
+{ "status": "error", "message": "..." }
 
----
-
-### GET /api/tasks/\<task_id\>
-
-Poll the status of an async training or benchmark job.
-
-**Response:**
-
-```json
-{ "status": "queued" }
-{ "status": "running" }
+// Task poll (completed)
 { "status": "completed", "result": { ... } }
-{ "status": "failed",    "error": "..." }
-{ "status": "not_found" }
+
+// Task poll (failed)
+{ "status": "failed", "error": "..." }
 ```
-
-`"not_found"` is returned (not a 404) if the task_id is unknown or the server was restarted (task registry is in-memory only).
-
-**Status Code:** 200
 
 ---
 
-### GET /api/history
+## Frontend Details
 
-Return all training run metadata, newest first. Scans `results/metrics/` for `*_metadata.json` files. If a matching `*_evaluation.json` exists for a run, it is inlined as `run["evaluation"]`.
+A zero-build-step single-page application (`frontend/`). No `package.json`, no bundler, no transpilation.
 
-**Response:**
+- **HTML** — `templates/index.html` is the SPA entry point.
+- **Styling** — Tailwind CSS loaded from CDN; custom semantic tokens (e.g. `bg-surface`) are defined in the inline `tailwind.config` block in `index.html`. Micro-adjustments in `static/css/style.css`.
+- **Security** — `DOMPurify` (CDN) is required for all `innerHTML` assignments from API responses.
+- **Image cache-busting** — `?t=Date.now()` is appended to plot `src` attributes on every new result.
 
-```json
-[
-  {
-    "run_id": "run_20260406_080528",
-    "timestamp": "2026-04-06T08:06:10.290101",
-    "config": { "model_type": "ddqn", "episodes": 100, "nodes": 550 },
-    "metrics": { "mean_reward": 145.32, "max_reward": 180.5 },
-    "image_url": "/api/visualizations/run_20260406_080528_plot.png",
-    "evaluation": { ... }
-  }
-]
-```
+### Three-Tab Right Panel
 
-**Status Code:** 200
+| Tab | Panel | Purpose |
+|-----|-------|---------|
+| `current` | `panelCurrent` | Result image, metric KPI cards, training status for the most recent run |
+| `history` | `panelHistory` | One card per run, rendered from `GET /api/history`, newest first |
+| `compare` | `panelCompare` | Pick Run A and Run B from history; generates a side-by-side comparison plot |
 
----
+### Key JS Functions
 
-### POST /api/evaluate
-
-Submit an async baseline benchmark job for a completed training run.
-
-**Request Body:**
-
-```json
-{ "run_id": "run_20260406_080528", "episodes": 10 }
-```
-
-| Field | Type | Default | Notes |
-|-------|------|---------|-------|
-| run_id | str | required | From `GET /api/history` |
-| episodes | int | 10 | 1–100 |
-
-**Response:**
-
-```json
-{ "task_id": "550e8400-e29b-41d4-a716-446655440000" }
-```
-
-Poll `GET /api/tasks/<task_id>` for results. On completion, writes `results/metrics/{run_id}_evaluation.json`.
-
-**Status Code:** 202
+| Function | Description |
+|----------|-------------|
+| `gatherPayload()` | Single source of truth for the `POST /api/train` body; maps form fields to API keys |
+| `applyResult(data)` | Populates KPI cards from Phase-3 metadata schema after a successful training run |
+| `normalizeRun(run)` | Smooths over old/new metadata schema; always use when rendering history rows |
+| `loadCompareRuns()` | Fills the two `<select>` elements in the compare tab from `_historyCache` |
+| `runComparison()` | Hits `GET /api/compare?a=<id>&b=<id>`, updates `compareImage.src` with cache-buster |
+| `syncConfigDisplay()` | Syncs `data-config-mirror="<key>"` elements to the current payload on every input event |
 
 ---
 
-### GET /api/results/\<filename\>
+## Output Artifacts & Metadata
 
-Retrieve output files (models, metrics, visualizations).
+### Run ID Format
 
-**Response:** File content (binary for .pth, JSON for .json, PNG for .png)
-
-**Status Code:** 200 (found), 404 (not found)
-
-```bash
-# Download JSON metrics
-curl http://localhost:5001/api/results/training_metrics.json > metrics.json
-
-# Download trained model
-curl http://localhost:5001/api/results/trained_model.pth > model.pth
+```
+run_YYYYMMDD_HHMMSS
 ```
 
-### Error Responses
+Generated at the start of each training job:
 
-All error responses follow this format:
+```python
+run_id = datetime.datetime.now().strftime("run_%Y%m%d_%H%M%S")
+```
+
+### File Naming
+
+| File | Path | Written by |
+|------|------|-----------|
+| Model weights | `results/models/{run_id}_model.pth` | `tasks.run_training()` |
+| Training metadata | `results/metrics/{run_id}_metadata.json` | `tasks.run_training()` |
+| Training plot | `results/visualizations/{run_id}_plot.png` | `tasks.run_training()` |
+| Comparison plot | `results/visualizations/compare_{a}_vs_{b}.png` | `tasks.compare_runs()` |
+
+### Metadata JSON Schema
 
 ```json
 {
-  "error": "Error type",
-  "message": "Detailed error message"
+  "run_id":           "run_20260414_080528",
+  "timestamp":        "2026-04-14T08:06:10.290101",
+  "model_used":       "ddqn",
+  "episodes":         100,
+  "num_nodes":        50,
+  "learning_rate":    0.0001,
+  "gamma":            0.99,
+  "death_threshold":  0.3,
+  "max":              1000,
+  "seed":             42,
+  "metrics": {
+    "mean_reward":       145.32,
+    "max_reward":        180.5,
+    "best_episode":      73,
+    "avg_final_10":      172.4,
+    "final_coverage":    0.87,
+    "final_avg_soh":     0.94,
+    "network_lifetime":  95
+  },
+  "series": {
+    "episode_reward":  [...],
+    "coverage":        [...],
+    "avg_soh":         [...],
+    "alive_fraction":  [...],
+    "mean_soc":        [...],
+    "step_counts":     [...]
+  },
+  "image_url":    "/api/visualizations/run_20260414_080528_plot.png",
+  "model_path":   "results/models/run_20260414_080528_model.pth"
 }
 ```
 
-| Code | Meaning      | Example               |
-| ---- | ------------ | --------------------- |
-| 200  | Success      | Training completed    |
-| 400  | Bad request  | Invalid parameter     |
-| 404  | Not found    | Results file missing  |
-| 500  | Server error | Crash during training |
+**Field glossary:**
 
-### Input Validation (Schemas)
+| Field | Description |
+|-------|-------------|
+| `model_used` | `"ddqn"` or `"dqn"` |
+| `max` | Max steps per episode (aliased from `max_steps` on the wire) |
+| `final_coverage` | Grid coverage fraction at the last episode |
+| `final_avg_soh` | Mean SoH across all nodes at the last episode |
+| `network_lifetime` | Episode index at which `alive_fraction` first dropped below `1 - death_threshold` |
+| `step_counts` | Per-episode count of steps survived |
 
-The API validates all inputs using Marshmallow schemas defined in `backend/schemas.py`.
+---
+
+## Testing
+
+The system uses `pytest` for all CI guarantees.
+
+### Test Files
+
+| File | Covers |
+|------|--------|
+| `tests/test_agent.py` | `DDQNAgent`, `DQNAgent` — unit tests, no env needed |
+| `tests/test_env.py` | `WSNEnv`, `BatteryModel` — environment dynamics |
+| `tests/test_backend.py` | Flask routes via `app.test_client()` |
+
+### Config Singleton Reset (Critical)
+
+Any test file that imports `config.settings` must reset the singleton before and after the session to prevent test contamination:
 
 ```python
-class TrainingRequestSchema(Schema):
-    episodes = fields.Int(
-        required=False,
-        validate=validate.Range(min=1, max=10000),
-        missing=100,
-    )
-    nodes = fields.Int(
-        required=False,
-        validate=validate.Range(min=10, max=10000),
-        missing=50,
-    )
-    learning_rate = fields.Float(
-        required=False,
-        validate=validate.Range(min=1e-6, max=1e-1),
-        missing=1e-4,
-    )
+import config.settings as settings_module
+
+@pytest.fixture(autouse=True, scope="session")
+def reset_config():
+    settings_module._config = None
+    yield
+    settings_module._config = None
 ```
 
-Invalid requests return:
+### Fixtures
 
-```json
-{
-  "error": "Validation error",
-  "details": {
-    "learning_rate": ["Must be between 1e-6 and 1e-1"]
-  }
-}
-```
-
-### Python Client Example
+Tests use `N_NODES=10` to stay fast. Never use the production default of 50 nodes in tests.
 
 ```python
-import requests
-import json
-
-BASE_URL = "http://localhost:5001/api"
-
-# Check health
-response = requests.get(f"{BASE_URL}/health")
-print(response.json())  # {"status": "healthy"}
-
-# Get config
-response = requests.get(f"{BASE_URL}/config")
-config = response.json()
-print(f"Current episodes: {config['training']['episodes']}")
-
-# Start training
-training_config = {
-    "episodes": 100,
-    "nodes": 50,
-    "learning_rate": 0.0001,
-    "gamma": 0.99,
-    "batch_size": 64,
-}
-
-response = requests.post(
-    f"{BASE_URL}/train",
-    json=training_config,
-)
-
-if response.status_code == 200:
-    result = response.json()
-    print(f"Training complete!")
-    print(f"Mean reward: {result['mean_reward']:.2f}")
-else:
-    print(f"Error: {response.json()}")
+@pytest.fixture
+def small_env():
+    return WSNEnv(N=10, max_steps=50, death_threshold=0.3)
 ```
 
-### JavaScript Client Example
-
-```javascript
-const BASE_URL = "http://localhost:5001/api";
-
-// Health check
-async function checkHealth() {
-  const response = await fetch(`${BASE_URL}/health`);
-  const data = await response.json();
-  console.log(data); // {status: "healthy"}
-}
-
-// Start training
-async function startTraining(trainingConfig) {
-  const response = await fetch(`${BASE_URL}/train`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(trainingConfig),
-  });
-
-  if (response.ok) {
-    const result = await response.json();
-    console.log(`Training complete!`);
-    console.log(`Mean reward: ${result.mean_reward.toFixed(2)}`);
-  } else {
-    console.error(`Error: ${await response.text()}`);
-  }
-}
-```
-
-### Deployment
-
-#### Running with Gunicorn (Production)
+### Running Tests
 
 ```bash
-pip install gunicorn
-
-# Run with 4 workers
-gunicorn -w 4 -b 0.0.0.0:5001 backend.app:app
-```
-
-#### Running with Docker
-
-```dockerfile
-FROM python:3.9-slim
-
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-
-COPY . .
-
-EXPOSE 5001
-CMD ["gunicorn", "-w 4", "-b 0.0.0.0:5001", "backend.app:app"]
-```
-
-```bash
-docker build -t wsn-ddqn .
-docker run -p 5001:5001 wsn-ddqn
-```
-
-### Monitoring & Logging
-
-All API calls are logged. Configure in `config/logging_config.yaml`:
-
-```yaml
-loggers:
-  backend:
-    level: INFO
-    handlers: [console, file]
-```
-
-```bash
-tail -f logs/app.log
+pytest tests/                                                   # all tests
+pytest tests/test_agent.py                                      # single file
+pytest tests/test_agent.py::TestDDQNAgent::test_initialization  # single test
+pytest tests/ -x                                                # stop on first failure
+pytest tests/ -v                                                # verbose output
 ```
 
 ---
 
-## Troubleshooting
+## CLI Reference
 
-### Issue: `ModuleNotFoundError: No module named 'torch'`
+| Use-case | Command |
+|----------|---------|
+| Train DDQN (primary) | `python scripts/train.py --episodes 500 --nodes 50 --seed 42 --model-type ddqn` |
+| Train DQN (ablation) | `python scripts/train.py --episodes 500 --nodes 50 --seed 42 --model-type dqn` |
+| Compare runs (auto-picks latest DDQN + DQN) | `python scripts/compare.py` |
+| Compare specific runs | `python scripts/compare.py --run-a run_20260414_080000 --run-b run_20260414_090000` |
+| Run all tests | `pytest tests/ -v` |
 
-```bash
-pip install torch
-```
-
-### Issue: `CUDA out of memory`
-
-Use CPU instead:
+All scripts in `scripts/` insert the project root onto `sys.path` via:
 
 ```python
-agent = DDQNAgent(..., device='cpu')
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 ```
 
-### Issue: Training is very slow
+Replicate this in any new script, or always run scripts from the project root.
 
-- Reduce number of nodes: `--nodes 100`
-- Reduce episodes: `--episodes 10`
-- Reduce batch size in config: edit `config/config.yaml`
+---
 
-### Issue: `Config file not found`
+## Code Quality
 
 ```bash
-# Make sure you're in the project root
-cd m2m_ddqn
-python scripts/train_model.py ...
-```
+# Formatting
+black src/ backend/
 
-### Problem: Rewards Not Increasing
+# Linting
+flake8 src/ backend/
 
-**Likely causes:**
-
-1. Learning rate too low
-2. Not enough episodes
-3. Bad hyperparameters
-
-**Solutions:**
-
-```bash
-# Try higher learning rate
-python scripts/train_model.py --lr 1e-3 --episodes 200
-
-# Try different gamma
-python scripts/train_model.py --gamma 0.95 --episodes 200
-```
-
-### Problem: Memory Error
-
-**Likely causes:**
-
-1. Too many nodes
-2. Replay buffer too large
-3. Batch size too large
-
-**Solutions:**
-
-```bash
-# Reduce problem size
-python scripts/train_model.py --nodes 100 --batch-size 32
-
-# Edit config.yaml:
-# replay_buffer_size: 100000  (was 200000)
-```
-
-### Problem: NaN in Loss
-
-**Likely causes:**
-
-1. Learning rate too high
-2. Exploding gradients
-
-**Solutions:**
-
-```bash
-# Lower learning rate
-python scripts/train_model.py --lr 1e-5
-
-# Edit ddqn_agent.py:
-nn.utils.clip_grad_norm_(self.q_net.parameters(), 5.0)  # Lower from 10.0
+# Static type checking
+mypy src/ --ignore-missing-imports
 ```
 
 ---
 
-## Performance Benchmarks
+## Extending the Platform
 
-### On CPU (Intel i7, 8GB RAM):
-
-| Nodes | Episodes | Time   | Mean Reward |
-| ----- | -------- | ------ | ----------- |
-| 50    | 100      | 2 min  | ~120        |
-| 100   | 100      | 5 min  | ~100        |
-| 550   | 100      | 45 min | ~150        |  ← full-scale
-
-### On GPU (NVIDIA GTX 1080):
-
-| Nodes | Episodes | Time   | Mean Reward |
-| ----- | -------- | ------ | ----------- |
-| 550   | 100      | 8 min  | ~150        |
-| 550   | 500      | 40 min | ~180        |
-
----
-
-## Reproducibility
-
-```bash
-python scripts/train_model.py \
-  --episodes 500 --nodes 50 \
-  --lr 1e-4 --gamma 0.99 \
-  --batch-size 64 --seed 42
-```
-
-The `--seed` controls initial weights, node positions, and exploration randomness — the same seed always produces the same results.
-
----
-
-## References
-
-- Deep Reinforcement Learning with Double Q-learning — [Hasselt et al., 2015](https://arxiv.org/abs/1509.06461)
-- Gymnasium: A Standard API for Reinforcement Learning Environments — [Farama Foundation](https://gymnasium.farama.org)
+| Extension | How |
+|-----------|-----|
+| New agent | Subclass `BaseAgent` in `src/agents/`; implement all abstract methods; wire into `tasks.py` agent-selection block |
+| New environment | Subclass `gym.Env`; implement `step()` and `reset()`; match the existing `info` dict shape |
+| New metric | Add computation to `src/utils/metrics.py`; call from `Trainer._run_episode()` |
+| New API route | Add handler to `backend/routes.py`; add schema to `backend/schemas.py`; add execution logic to `backend/tasks.py` |
