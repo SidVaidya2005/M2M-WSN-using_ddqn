@@ -1,0 +1,24 @@
+{
+  "run_id": "run_20260406_080528",
+  "timestamp": "2026-04-06T08:06:10.290101",
+  "config": {
+    "model_type": "ddqn",
+    "episodes": null,
+    "nodes": null,
+    "learning_rate": null,
+    "gamma": null,
+    "batch_size": null,
+    "death_threshold": null,
+    "max_steps": null,
+    "seed": null
+  },
+  "metrics": {
+    "mean_reward": null,
+    "max_reward": null,
+    "best_episode": null,
+    "avg_final_10": null
+  },
+  "image_url": null,
+  "model_path": "/Users/siddarthvaidya/Downloads/Visual_Studio_Code/Minor/m2m_ddqn/results/models/run_20260406_080528_model.pth",
+  "_note": "Model file found but training metrics were not saved (likely a crash or early exit)."
+}

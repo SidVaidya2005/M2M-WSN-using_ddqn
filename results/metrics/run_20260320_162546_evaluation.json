@@ -1,0 +1,28 @@
+{
+  "run_id": "run_20260320_162546",
+  "benchmark_episodes": 10,
+  "timestamp": "2026-03-20T16:25:45.237325",
+  "results": {
+    "DDQN": {
+      "mean_reward": 994.0,
+      "policy_type": "trained"
+    },
+    "Random": {
+      "mean_reward": 1864.0,
+      "policy_type": "baseline"
+    },
+    "Greedy": {
+      "mean_reward": 1930.0,
+      "policy_type": "baseline"
+    },
+    "EnergyConservative": {
+      "mean_reward": 0.0,
+      "policy_type": "baseline"
+    },
+    "BalancedRotation": {
+      "mean_reward": 980.0,
+      "policy_type": "baseline"
+    }
+  },
+  "_note": "Migrated from archive/metrics/realistic_comparison.json"
+}

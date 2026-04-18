@@ -1,0 +1,24 @@
+{
+  "run_id": "run_20260324_175842",
+  "timestamp": "2026-03-24T17:58:42.075919",
+  "config": {
+    "model_type": "ddqn",
+    "episodes": null,
+    "nodes": null,
+    "learning_rate": null,
+    "gamma": null,
+    "batch_size": null,
+    "death_threshold": null,
+    "max_steps": null,
+    "seed": null
+  },
+  "metrics": {
+    "mean_reward": null,
+    "max_reward": null,
+    "best_episode": null,
+    "avg_final_10": null
+  },
+  "image_url": null,
+  "model_path": "/Users/siddarthvaidya/Downloads/Visual_Studio_Code/Minor/m2m_ddqn/results/models/run_20260324_175842_model.pth",
+  "_note": "Migrated from results/models/trained_model_ddqn.pth \u2014 no training metrics available"
+}

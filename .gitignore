@@ -33,17 +33,15 @@ coverage.xml
 *.coveragerc
 
 # ── PyTorch / ML artifacts ────────────────────────────────────────────────────
-# Generated model checkpoints and training state — use run_id naming instead
-*.pth
-*.pt
 *.onnx
-*.pkl
-*.pickle
+# Track model weights inside results/
+!results/**/*.pth
+!results/**/*.pt
 
 # ── Generated results (models, metrics, plots) ────────────────────────────────
-# results/ is entirely generated — nothing inside is source-controlled.
-# Use run_id-named artifacts only (run_YYYYMMDD_HHMMSS_*).
-results/
+# results/ is tracked — models, metrics JSON, and visualizations are committed.
+!results/
+!results/**
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logs/
@@ -85,13 +83,13 @@ Thumbs.db
 *.ipynb
 
 # ── Matplotlib / visualization cache ──────────────────────────────────────────
-# Ignore locally generated plots that land outside results/ (e.g. during dev)
-*.png
+# Ignore loose plots that land outside results/ (e.g. during dev)
 *.gif
-*.jpg
-*.jpeg
 
-# Exception: keep any committed images in docs/ or frontend/static/
+# Exception: keep images in results/, docs/, and frontend/static/
+!results/**/*.png
+!results/**/*.jpg
+!results/**/*.jpeg
 !docs/**/*.png
 !docs/**/*.jpg
 !frontend/static/img/**

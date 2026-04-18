@@ -1,0 +1,24 @@
+{
+  "run_id": "run_20260320_162546",
+  "timestamp": "2026-03-20T16:25:45.233444",
+  "config": {
+    "model_type": "ddqn",
+    "episodes": 10,
+    "nodes": 50,
+    "learning_rate": 0.0001,
+    "gamma": 0.99,
+    "batch_size": 64,
+    "death_threshold": 0.3,
+    "max_steps": 1000,
+    "seed": 42
+  },
+  "metrics": {
+    "mean_reward": 666.2559,
+    "max_reward": 190.0,
+    "best_episode": 6,
+    "avg_final_10": 184.9
+  },
+  "image_url": "/api/visualizations/run_20260320_162546_plot.png",
+  "model_path": "/Users/siddarthvaidya/Downloads/Visual_Studio_Code/Minor/m2m_ddqn/results/models/run_20260320_162546_model.pth",
+  "_note": "Migrated from archive/metrics/final_ddqn_results.json"
+}
