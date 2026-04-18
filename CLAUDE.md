@@ -92,7 +92,7 @@ Frontend (frontend/templates/ + frontend/static/) → HTTP/JSON → backend/ (Fl
 
 **`src/agents/`** — `BaseAgent` is the abstract interface. `DDQNAgent` uses two PyTorch networks (policy + target), epsilon-greedy exploration, and a `ReplayBuffer`. `DQNAgent` uses a single network. Action space is per-node `{SLEEP=0, AWAKE=1}`.
 
-**`src/envs/wsn_env.py`** — Gymnasium-compatible environment. Observation: 5 features per node (SoC, SoH, last_action, distance_to_sink, activity_ratio). Reward balances coverage, energy efficiency, battery health, and fairness. `BatteryModel` (in `src/envs/battery_model.py`) tracks State of Charge (SoC) and State of Health (SoH) with cycle-based and calendar degradation.
+**`src/envs/wsn_env.py`** — Gymnasium-compatible environment. Observation: 6 features per node (SoC, SoH, last_action, distance_to_sink, activity_ratio, charging_flag). Reward balances coverage, energy efficiency, battery health, and fairness. `BatteryModel` (in `src/envs/battery_model.py`) tracks State of Charge (SoC) and State of Health (SoH) with cycle-based and calendar degradation.
 
 **`src/training/trainer.py`** — Orchestrates the training loop. Calls `agent.select_action()` → `env.step()` → `agent.store_transition()` → `agent.learn_step()`. Logs every 10 episodes; saves `.pth` checkpoints and metrics JSON.
 
@@ -105,9 +105,10 @@ Frontend (frontend/templates/ + frontend/static/) → HTTP/JSON → backend/ (Fl
 ### Output Artifacts
 - `results/models/run_{timestamp}_model.pth` — PyTorch policy network weights per run
 - `results/metrics/run_{timestamp}_metadata.json` — Per-run config + summary metrics
-- `results/visualizations/run_{timestamp}_plot.png` — Training progress plot
+- `results/visualizations/run_{timestamp}_plot.png` — Combined 2×2 training dashboard (50-ep MA overlay)
+- `results/visualizations/{timestamp}/` — Individual PNGs per panel: `coverage.png`, `battery_health.png`, `energy_consumption.png`, `throughput.png`
 
-Run IDs have the format `run_YYYYMMDD_HHMMSS`.
+Run IDs have the format `run_YYYYMMDD_HHMMSS`. The individual-plots directory uses the timestamp portion only (e.g. `20260414_080000`).
 
 ## Gotchas
 

@@ -38,7 +38,7 @@ The right panel has **three tabs**, toggled by `switchTab(tab)`:
 
 **`normalizeRun(run)`** — smooths over the old/new metadata schema. Pulls `model_used`, `num_nodes`, `episodes`, etc. from top-level Phase-3 fields first, falling back to `run.config.*` for pre-Phase-3 runs. Use this whenever rendering a history row.
 
-**`loadCompareRuns()` / `runComparison()`** — compare tab flow. `runComparison()` hits `GET /api/compare?a=<id>&b=<id>`, reads `data.image_url`, and swaps `compareImage.src` with a `?t=` cache-buster. Rejects identical or missing run IDs client-side before fetching.
+**`loadCompareRuns()` / `runComparison()`** — compare tab flow. `runComparison()` hits `GET /api/compare?a=<id>&b=<id>`, sets `compareImage.src` from `data.image_url` (combined 2×2 plot), then populates four individual-panel `<img>` elements (`cmpCoverage`, `cmpBatteryHealth`, `cmpEnergyConsumption`, `cmpThroughput`) from `data.individual_urls` and unhides `#compareIndividualSection`. All `src` values get `?t=` cache-busters. Rejects identical or missing run IDs client-side before fetching.
 
 **`data-config-mirror` attribute** — any element with `data-config-mirror="<key>"` has its text content synced to the corresponding payload key on every form `input`/`change` event via `syncConfigDisplay()`.
 

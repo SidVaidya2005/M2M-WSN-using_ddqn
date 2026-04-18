@@ -42,7 +42,7 @@ This module contains all heavy computation. Entry points:
 
 - **`run_training(params, config)`** — synchronous; called by `POST /api/train`. Builds env + agent (`DDQNAgent` if `model_type=="ddqn"`, else `DQNAgent`), runs `Trainer.train()`, writes `{run_id}_model.pth`, `{run_id}_plot.png`, and `{run_id}_metadata.json` (Phase 3 schema — see [`../.claude/rules/artifacts.md`](../.claude/rules/artifacts.md)).
 - **`submit_training_task(params, config)`** — wraps `run_training` in a daemon thread; returns a UUID `task_id`. Background wrapper is `_run_training_background`.
-- **`compare_runs(run_id_a, run_id_b, config)`** — loads both `{run_id}_metadata.json` files via an internal `_load_meta` helper, calls `plot_comparison_dashboard()`, writes `compare_{a}_vs_{b}.png`, and returns `{status, image_url, run_a, run_b}`.
+- **`compare_runs(run_id_a, run_id_b, config)`** — loads both `{run_id}_metadata.json` files via an internal `_load_meta` helper, calls `plot_comparison_dashboard()`, writes `compare_{a}_vs_{b}.png` (combined) and `compare_{a}_vs_{b}/coverage.png`, `battery_health.png`, `energy_consumption.png`, `throughput.png` (individual panels). Returns `{status, image_url, individual_urls, run_a, run_b}` where `individual_urls` is a dict mapping metric key → `/api/visualizations/…` path.
 - **`get_task(task_id)`** — returns `{status: ...}` from the in-memory registry, or `"not_found"`.
 
 **Task registry** (`_tasks` dict) is in-memory and protected by `_tasks_lock`. It is lost on server restart — tasks submitted before a restart will return `"not_found"`.
