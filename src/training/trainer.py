@@ -87,7 +87,7 @@ class Trainer:
                 mean_reward = np.mean(self.episode_rewards[-10:])
                 logger.info(
                     f"Episode {episode+1}/{episodes} - "
-                    f"Reward: {episode_reward:.2f}, 10-ep MA: {mean_reward:.2f}"
+                    f"Reward: {episode_reward:.2f}, 50-ep MA: {mean_reward:.2f}"
                 )
 
             if progress_callback is not None:

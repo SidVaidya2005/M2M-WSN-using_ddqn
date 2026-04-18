@@ -154,6 +154,7 @@ def run_training(params: dict, config, progress_callback=None) -> Dict[str, Any]
         "series": {
             "coverage":           [float(v) for v in coverage_series],
             "avg_soh":            [float(v) for v in soh_series],
+            "mean_soc":           [float(v) for v in ep_series.get("mean_soc", [])],
             "energy_consumption": [float(v) for v in ep_series.get("energy_consumption", [])],
             "throughput":         [float(v) for v in ep_series.get("throughput", [])],
         },
@@ -261,17 +262,33 @@ def compare_runs(run_id_a: str, run_id_b: str, config) -> Dict[str, Any]:
     series_a = meta_a.get("series", {})
     series_b = meta_b.get("series", {})
 
-    label_a = f"{(meta_a.get('model_used') or meta_a.get('config', {}).get('model_type', '?')).upper()} ({run_id_a[-8:]})"
-    label_b = f"{(meta_b.get('model_used') or meta_b.get('config', {}).get('model_type', '?')).upper()} ({run_id_b[-8:]})"
+    label_a = (meta_a.get('model_used') or meta_a.get('config', {}).get('model_type', '?')).upper()
+    label_b = (meta_b.get('model_used') or meta_b.get('config', {}).get('model_type', '?')).upper()
 
     filename = f"compare_{run_id_a}_vs_{run_id_b}.png"
     plot_path = vis_dir / filename
-    plot_comparison_dashboard(series_a, series_b, label_a, label_b,
-                              output_path=str(plot_path))
+    ind_dir = vis_dir / f"compare_{run_id_a}_vs_{run_id_b}"
+    plot_comparison_dashboard(
+        series_a, series_b, label_a, label_b,
+        output_path=str(plot_path),
+        individual_output_dir=str(ind_dir),
+    )
+
+    ind_filenames = {
+        "coverage":           "coverage.png",
+        "mean_soc":           "battery_charge.png",
+        "energy_consumption": "energy_consumption.png",
+        "throughput":         "throughput.png",
+    }
+    individual_urls = {
+        key: f"/api/visualizations/compare_{run_id_a}_vs_{run_id_b}/{fname}"
+        for key, fname in ind_filenames.items()
+    }
 
     logger.info(f"Comparison plot saved: {plot_path}")
     return {
         "image_url": f"/api/visualizations/{filename}",
+        "individual_urls": individual_urls,
         "run_a": run_id_a,
         "run_b": run_id_b,
     }

@@ -325,7 +325,7 @@ async function loadCompareRuns() {
       const r   = normalizeRun(run);
       const opt = document.createElement("option");
       opt.value       = r.run_id;
-      opt.textContent = `${r.model_used.toUpperCase()} — ${r.run_id} (${r.episodes ?? "?"} ep)`;
+      opt.textContent = r.model_used.toUpperCase();
       sel.appendChild(opt);
     });
   });
@@ -371,11 +371,23 @@ async function runComparison() {
       throw new Error(data.message ?? "Comparison failed");
     }
 
-    compareImg.src = `${data.image_url}?t=${Date.now()}`;
+    const ts = Date.now();
+    compareImg.src = `${data.image_url}?t=${ts}`;
     compareImg.addEventListener("load", () => {
       placeholder.style.display = "none";
       compareImg.style.display  = "block";
     }, { once: true });
+
+    // Individual panels
+    const indUrls = data.individual_urls || {};
+    const indSection = document.getElementById("compareIndividualSection");
+    if (Object.keys(indUrls).length) {
+      document.getElementById("cmpCoverage").src          = `${indUrls.coverage}?t=${ts}`;
+      document.getElementById("cmpBatteryHealth").src     = `${indUrls.mean_soc}?t=${ts}`;
+      document.getElementById("cmpEnergyConsumption").src = `${indUrls.energy_consumption}?t=${ts}`;
+      document.getElementById("cmpThroughput").src        = `${indUrls.throughput}?t=${ts}`;
+      indSection.classList.remove("hidden");
+    }
 
     statusEl.textContent = "Comparison generated successfully.";
     statusEl.classList.add("status-success");
