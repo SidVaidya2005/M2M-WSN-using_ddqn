@@ -1,5 +1,8 @@
 """Visualization utilities for plots and animations."""
 
+import matplotlib
+matplotlib.use('Agg')  # non-interactive backend safe for background threads
+
 from typing import Dict, List, Optional
 import numpy as np
 import json
@@ -40,145 +43,91 @@ def _moving_avg(values: List[float], window: int) -> Optional[List[float]]:
     return np.convolve(values, kernel, mode="valid").tolist()
 
 
+# ── Shared style constants ────────────────────────────────────────────────────
+
+ORANGE  = "#fe964a"
+BLUE    = "#0077b6"
+GREEN   = "#2a9d8f"
+PURPLE  = "#9b5de5"
+TEAL    = "#06d6a0"
+GREY_BG = "#fdfdfd"
+
+# Canonical 4-metric panel config: (series_key, ylabel, title, color)
+_PANELS = [
+    ("coverage",           "Coverage fraction",       "Network Coverage",     ORANGE),
+    ("avg_soh",            "State of Health",          "Battery Health",       GREEN),
+    ("energy_consumption", "SoC drain (start − end)",  "Energy Consumption",   PURPLE),
+    ("throughput",         "Coverage × Alive fraction","Throughput",           TEAL),
+]
+
+
+def _draw_metric_panel(ax, values, label, ylabel, title, color, window_size=10):
+    """Draw a single metric line + moving-average overlay onto ax."""
+    ax.set_facecolor(GREY_BG)
+    if values:
+        episodes = list(range(1, len(values) + 1))
+        ax.plot(episodes, values, color=color, alpha=0.8, linewidth=1.2, label=label)
+        ma = _moving_avg(values, window_size)
+        if ma is not None:
+            ax.plot(
+                range(window_size, len(values) + 1),
+                ma,
+                color=BLUE, linewidth=2.2,
+                label=f"{window_size}-ep MA",
+            )
+    ax.set_xlabel("Episode")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+
+
 def plot_training_dashboard(
     rewards: List[float],
     series: Optional[Dict[str, List]] = None,
     output_path: Optional[str] = None,
     window_size: int = 10,
 ) -> None:
-    """Save a 2×2 training dashboard PNG.
+    """Save a 2×2 training dashboard PNG with the 4 canonical metrics.
 
     Panels
     ------
-    Top-left  : Network Coverage over episodes (line + moving average)
-    Top-right : Battery Health (avg SoH) over episodes (line + moving average)
-    Bottom-left : Network Lifetime — steps-per-episode bar + mean horizontal line
-    Bottom-right: Episode Reward (left axis) & Mean SoC (right axis), dual-axis
+    Top-left     : Network Coverage
+    Top-right    : Battery Health (avg SoH)
+    Bottom-left  : Energy Consumption (SoC drain per episode)
+    Bottom-right : Throughput (coverage × alive_fraction)
 
     Args:
-        rewards: Per-episode total rewards.
-        series: Dict with keys ``coverage``, ``avg_soh``, ``alive_fraction``,
-                ``mean_soc``, ``step_counts`` (each a list aligned with ``rewards``).
+        rewards: Per-episode total rewards (kept for API compatibility).
+        series: Dict with keys ``coverage``, ``avg_soh``, ``energy_consumption``,
+                ``throughput`` (each a list aligned with ``rewards``).
                 When None the function falls back to a single reward-curve panel.
         output_path: Where to write the PNG. Parent directories are created.
         window_size: Window for moving-average overlays.
     """
     try:
         import matplotlib.pyplot as plt
-        import matplotlib.gridspec as gridspec
     except ImportError:
         print("Warning: matplotlib not installed, skipping plot generation")
         return
 
     if series is None:
-        # Fallback: single reward curve (keeps backward compat for callers without series)
         _plot_single_reward_curve(rewards, output_path, window_size)
         return
-
-    episodes = list(range(1, len(rewards) + 1))
-    coverage = series.get("coverage", [])
-    avg_soh = series.get("avg_soh", [])
-    mean_soc = series.get("mean_soc", [])
-    step_counts = series.get("step_counts", [])
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle("WSN Training Dashboard", fontsize=14, fontweight="bold", y=0.98)
 
-    ORANGE = "#fe964a"
-    BLUE = "#0077b6"
-    GREEN = "#2a9d8f"
-    PURPLE = "#9b5de5"
-    GREY_BG = "#fdfdfd"
-
-    # ── Panel 1: Network Coverage ────────────────────────────────────────────
-    ax = axes[0, 0]
-    ax.set_facecolor(GREY_BG)
-    if coverage:
-        ax.plot(episodes, coverage, color=ORANGE, alpha=0.8, linewidth=1.2,
-                label="Coverage")
-        ma = _moving_avg(coverage, window_size)
-        if ma is not None:
-            ax.plot(
-                range(window_size, len(coverage) + 1),
-                ma,
-                color=BLUE, linewidth=2.2,
-                label=f"{window_size}-ep MA",
-            )
-    ax.set_xlabel("Episode")
-    ax.set_ylabel("Coverage fraction")
-    ax.set_title("Network Coverage")
-    ax.set_ylim(0.0, 1.05)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-
-    # ── Panel 2: Battery Health (avg SoH) ───────────────────────────────────
-    ax = axes[0, 1]
-    ax.set_facecolor(GREY_BG)
-    if avg_soh:
-        ax.plot(episodes, avg_soh, color=GREEN, alpha=0.8, linewidth=1.2,
-                label="Avg SoH")
-        ma = _moving_avg(avg_soh, window_size)
-        if ma is not None:
-            ax.plot(
-                range(window_size, len(avg_soh) + 1),
-                ma,
-                color=BLUE, linewidth=2.2,
-                label=f"{window_size}-ep MA",
-            )
-    ax.set_xlabel("Episode")
-    ax.set_ylabel("State of Health")
-    ax.set_title("Battery Health (avg SoH)")
-    ax.set_ylim(0.0, 1.05)
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3)
-
-    # ── Panel 3: Network Lifetime (steps per episode) ────────────────────────
-    ax = axes[1, 0]
-    ax.set_facecolor(GREY_BG)
-    if step_counts:
-        ax.bar(episodes, step_counts, color=PURPLE, alpha=0.7, width=0.8,
-               label="Steps / episode")
-        mean_steps = float(np.mean(step_counts))
-        ax.axhline(mean_steps, color=ORANGE, linewidth=2.0, linestyle="--",
-                   label=f"Mean: {mean_steps:.0f}")
-    ax.set_xlabel("Episode")
-    ax.set_ylabel("Steps survived")
-    ax.set_title("Network Lifetime (steps per episode)")
-    ax.legend(fontsize=8)
-    ax.grid(True, alpha=0.3, axis="y")
-
-    # ── Panel 4: Reward & Mean SoC (dual axis) ──────────────────────────────
-    ax = axes[1, 1]
-    ax.set_facecolor(GREY_BG)
-    ax.plot(episodes, rewards, color=ORANGE, alpha=0.85, linewidth=1.2,
-            label="Episode Reward")
-    ma_r = _moving_avg(rewards, window_size)
-    if ma_r is not None:
-        ax.plot(
-            range(window_size, len(rewards) + 1),
-            ma_r,
-            color=BLUE, linewidth=2.2,
-            label=f"{window_size}-ep MA (reward)",
+    for ax, (key, ylabel, title, color) in zip(axes.flat, _PANELS):
+        _draw_metric_panel(
+            ax,
+            series.get(key, []),
+            label=title,
+            ylabel=ylabel,
+            title=title,
+            color=color,
+            window_size=window_size,
         )
-    ax.set_xlabel("Episode")
-    ax.set_ylabel("Episode Reward", color=ORANGE)
-    ax.tick_params(axis="y", labelcolor=ORANGE)
-    ax.set_title("Reward & Mean SoC")
-    ax.grid(True, alpha=0.3)
-
-    if mean_soc:
-        ax2 = ax.twinx()
-        ax2.plot(episodes, mean_soc, color=GREEN, alpha=0.7, linewidth=1.5,
-                 linestyle=":", label="Mean SoC")
-        ax2.set_ylabel("Mean SoC (0–1)", color=GREEN)
-        ax2.tick_params(axis="y", labelcolor=GREEN)
-        ax2.set_ylim(0.0, 1.05)
-        # Combined legend
-        lines1, labels1 = ax.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax.legend(lines1 + lines2, labels1 + labels2, fontsize=8, loc="lower right")
-    else:
-        ax.legend(fontsize=8)
 
     fig.tight_layout(rect=[0, 0, 1, 0.97])
 
@@ -188,6 +137,53 @@ def plot_training_dashboard(
         fig.savefig(out, dpi=150, bbox_inches="tight")
 
     plt.close(fig)
+
+
+def plot_individual_metrics(
+    series: Dict[str, List],
+    output_dir: str,
+    window_size: int = 10,
+) -> Dict[str, str]:
+    """Save one PNG per canonical metric into output_dir.
+
+    Returns a dict mapping metric name → absolute file path.
+    """
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("Warning: matplotlib not installed, skipping individual metric plots")
+        return {}
+
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    filenames = {
+        "coverage":           "coverage.png",
+        "avg_soh":            "battery_health.png",
+        "energy_consumption": "energy_consumption.png",
+        "throughput":         "throughput.png",
+    }
+
+    saved: Dict[str, str] = {}
+    for key, ylabel, title, color in _PANELS:
+        fig, ax = plt.subplots(1, 1, figsize=(8, 5))
+        fig.suptitle(title, fontsize=12, fontweight="bold")
+        _draw_metric_panel(
+            ax,
+            series.get(key, []),
+            label=title,
+            ylabel=ylabel,
+            title=title,
+            color=color,
+            window_size=window_size,
+        )
+        fig.tight_layout()
+        dest = out_dir / filenames[key]
+        fig.savefig(dest, dpi=150, bbox_inches="tight")
+        plt.close(fig)
+        saved[key] = str(dest)
+
+    return saved
 
 
 def _plot_single_reward_curve(
@@ -203,14 +199,14 @@ def _plot_single_reward_curve(
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 6))
     episodes = range(1, len(episode_rewards) + 1)
-    ax.plot(list(episodes), episode_rewards, color="#fe964a", alpha=0.9,
+    ax.plot(list(episodes), episode_rewards, color=ORANGE, alpha=0.9,
             label="Episode Reward", linewidth=1.5)
     ma = _moving_avg(episode_rewards, window_size)
     if ma is not None:
         ax.plot(
             range(window_size, len(episode_rewards) + 1),
             ma,
-            color="#0077b6",
+            color=BLUE,
             label=f"{window_size}-Episode MA",
             linewidth=2.5,
         )
@@ -218,7 +214,7 @@ def _plot_single_reward_curve(
     ax.set_ylabel("Reward")
     ax.set_title("Training Progress")
     ax.legend()
-    ax.set_facecolor("#fdfdfd")
+    ax.set_facecolor(GREY_BG)
     ax.grid(True, alpha=0.3)
 
     if output_path:
@@ -240,14 +236,13 @@ def plot_comparison_dashboard(
 
     Panels
     ------
-    Top-left  : Network Coverage — both agents overlaid
-    Top-right : Battery Health (avg SoH) — both agents overlaid
-    Bottom-left : Network Lifetime (steps/episode) — both agents overlaid
-    Bottom-right: Episode Reward — both agents overlaid
+    Top-left     : Network Coverage — both agents overlaid
+    Top-right    : Battery Health (avg SoH) — both agents overlaid
+    Bottom-left  : Energy Consumption — both agents overlaid
+    Bottom-right : Throughput — both agents overlaid
 
     Args:
-        series_a: Per-episode series dict for run A (keys: episode_reward, coverage,
-                  avg_soh, step_counts, …).
+        series_a: Per-episode series dict for run A.
         series_b: Same for run B.
         label_a: Legend label for run A.
         label_b: Legend label for run B.
@@ -259,9 +254,8 @@ def plot_comparison_dashboard(
         print("Warning: matplotlib not installed, skipping comparison plot")
         return
 
-    COLOR_A = "#7bd0ff"   # primary blue — typically DDQN
-    COLOR_B = "#fe964a"   # orange — typically DQN
-    GREY_BG = "#fdfdfd"
+    COLOR_A = "#7bd0ff"
+    COLOR_B = "#fe964a"
 
     def _ep(values):
         return list(range(1, len(values) + 1))
@@ -288,10 +282,10 @@ def plot_comparison_dashboard(
         fontsize=13, fontweight="bold", y=0.98,
     )
 
-    _overlay(axes[0, 0], "coverage",       "Coverage fraction", "Network Coverage",        ylim=(0, 1.05))
-    _overlay(axes[0, 1], "avg_soh",        "Avg SoH",           "Battery Health (avg SoH)", ylim=(0, 1.05))
-    _overlay(axes[1, 0], "step_counts",    "Steps survived",    "Network Lifetime (steps/ep)")
-    _overlay(axes[1, 1], "episode_reward", "Episode Reward",    "Reward")
+    _overlay(axes[0, 0], "coverage",           "Coverage fraction",        "Network Coverage",    ylim=(0, 1.05))
+    _overlay(axes[0, 1], "avg_soh",            "Avg SoH",                  "Battery Health",      ylim=(0, 1.05))
+    _overlay(axes[1, 0], "energy_consumption", "SoC drain (start − end)",  "Energy Consumption")
+    _overlay(axes[1, 1], "throughput",         "Coverage × Alive fraction","Throughput")
 
     fig.tight_layout(rect=[0, 0, 1, 0.95])
 

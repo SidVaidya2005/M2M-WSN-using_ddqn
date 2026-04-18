@@ -1,8 +1,14 @@
 """Generic training loop for RL agents."""
 
-from typing import Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 import numpy as np
 from pathlib import Path
+
+try:
+    from tqdm import tqdm as _tqdm
+    _TQDM_AVAILABLE = True
+except ImportError:
+    _TQDM_AVAILABLE = False
 
 from ..agents.base_agent import BaseAgent
 from ..envs.wsn_env import WSNEnv
@@ -22,12 +28,12 @@ class Trainer:
 
         self.episode_rewards: List[float] = []
         self.episode_series: Dict[str, List] = {
-            "episode_reward": [],
             "coverage": [],
             "avg_soh": [],
-            "alive_fraction": [],
-            "mean_soc": [],
-            "step_counts": [],
+            "alive_fraction": [],   # retained for network_lifetime property
+            "mean_soc": [],         # retained for energy_consumption computation
+            "energy_consumption": [],
+            "throughput": [],
         }
 
     @property
@@ -43,20 +49,39 @@ class Trainer:
                 return i + 1
         return len(self.episode_series["alive_fraction"])
 
-    def train(self, episodes: int) -> List[float]:
-        """Train the agent and return per-episode total rewards."""
+    def train(
+        self,
+        episodes: int,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> List[float]:
+        """Train the agent and return per-episode total rewards.
+
+        Args:
+            episodes: Number of training episodes.
+            progress_callback: Optional callable invoked after each episode as
+                ``progress_callback(current_episode, total_episodes)``.
+        """
         logger.info(f"Training for {episodes} episodes")
 
-        for episode in range(episodes):
+        episode_iter = (
+            _tqdm(range(episodes), desc="Training", unit="ep")
+            if _TQDM_AVAILABLE
+            else range(episodes)
+        )
+
+        for episode in episode_iter:
             episode_reward, summary = self._run_episode()
 
+            energy_consumption = summary["start_mean_soc"] - summary["end_mean_soc"]
+            throughput = summary["coverage"] * summary["alive_fraction"]
+
             self.episode_rewards.append(episode_reward)
-            self.episode_series["episode_reward"].append(episode_reward)
             self.episode_series["coverage"].append(summary["coverage"])
             self.episode_series["avg_soh"].append(summary["avg_soh"])
             self.episode_series["alive_fraction"].append(summary["alive_fraction"])
-            self.episode_series["mean_soc"].append(summary["mean_soc"])
-            self.episode_series["step_counts"].append(summary["step_count"])
+            self.episode_series["mean_soc"].append(summary["end_mean_soc"])
+            self.episode_series["energy_consumption"].append(float(energy_consumption))
+            self.episode_series["throughput"].append(float(throughput))
 
             if (episode + 1) % 10 == 0:
                 mean_reward = np.mean(self.episode_rewards[-10:])
@@ -64,6 +89,9 @@ class Trainer:
                     f"Episode {episode+1}/{episodes} - "
                     f"Reward: {episode_reward:.2f}, 10-ep MA: {mean_reward:.2f}"
                 )
+
+            if progress_callback is not None:
+                progress_callback(episode + 1, episodes)
 
         self.env.close()
         return self.episode_rewards
@@ -102,8 +130,10 @@ class Trainer:
             "avg_soh": float(np.mean(step_soh)) if step_soh else 0.0,
             # alive_fraction reported as final-step value (end-state of the network)
             "alive_fraction": step_alive[-1] if step_alive else 0.0,
-            "mean_soc": float(np.mean(step_soc)) if step_soc else 0.0,
-            "step_count": step_count,
+            # SoC at first recorded step (proxy for start-of-episode charge)
+            "start_mean_soc": step_soc[0] if step_soc else 1.0,
+            # SoC at last recorded step (end-of-episode charge)
+            "end_mean_soc": step_soc[-1] if step_soc else 0.0,
         }
 
     def save_checkpoint(self, path: str) -> None:

@@ -17,7 +17,11 @@ from src.agents.dqn_agent import DQNAgent
 from src.envs.wsn_env import WSNEnv
 from src.training.trainer import Trainer
 from src.utils.logger import get_logger
-from src.utils.visualization import plot_training_dashboard, plot_comparison_dashboard
+from src.utils.visualization import (
+    plot_training_dashboard,
+    plot_individual_metrics,
+    plot_comparison_dashboard,
+)
 
 logger = get_logger(__name__)
 
@@ -39,7 +43,7 @@ def get_task(task_id: str) -> Dict[str, Any]:
         return dict(_tasks.get(task_id, {"status": "not_found"}))
 
 
-def run_training(params: dict, config) -> Dict[str, Any]:
+def run_training(params: dict, config, progress_callback=None) -> Dict[str, Any]:
     """Execute training synchronously and return the result dict.
 
     Used by the /api/train route for synchronous (blocking) invocation.
@@ -93,17 +97,27 @@ def run_training(params: dict, config) -> Dict[str, Any]:
     )
 
     trainer = Trainer(agent, env, seed=seed)
-    rewards = trainer.train(episodes=episodes)
+    rewards = trainer.train(episodes=episodes, progress_callback=progress_callback)
 
     model_path = Path(config.paths.models) / f"{run_id}_model.pth"
     trainer.save_checkpoint(str(model_path))
 
     ep_series = trainer.episode_series
 
+    # Combined 4-panel dashboard (served as the primary image)
     plot_filename = f"{run_id}_plot.png"
     plot_path = Path(config.paths.visualizations) / plot_filename
     plot_training_dashboard(rewards, series=ep_series, output_path=str(plot_path))
     image_url = f"/api/visualizations/{plot_filename}"
+
+    # Individual metric PNGs saved under results/visualizations/<datetime>/
+    datetime_suffix = run_id[len("run_"):]   # "YYYYMMDD_HHMMSS"
+    individual_dir = Path(config.paths.visualizations) / datetime_suffix
+    individual_paths = plot_individual_metrics(ep_series, output_dir=str(individual_dir))
+    individual_image_urls = {
+        key: f"/api/visualizations/{datetime_suffix}/{Path(path).name}"
+        for key, path in individual_paths.items()
+    }
 
     mean_reward = float(sum(rewards) / len(rewards)) if rewards else 0.0
     max_reward = float(max(rewards)) if rewards else 0.0
@@ -138,14 +152,13 @@ def run_training(params: dict, config) -> Dict[str, Any]:
             "network_lifetime": network_lifetime,
         },
         "series": {
-            "episode_reward": [float(r) for r in rewards],
-            "coverage": [float(v) for v in coverage_series],
-            "avg_soh": [float(v) for v in soh_series],
-            "alive_fraction": [float(v) for v in ep_series.get("alive_fraction", [])],
-            "mean_soc": [float(v) for v in ep_series.get("mean_soc", [])],
-            "step_counts": [int(v) for v in ep_series.get("step_counts", [])],
+            "coverage":           [float(v) for v in coverage_series],
+            "avg_soh":            [float(v) for v in soh_series],
+            "energy_consumption": [float(v) for v in ep_series.get("energy_consumption", [])],
+            "throughput":         [float(v) for v in ep_series.get("throughput", [])],
         },
         "image_url": image_url,
+        "individual_image_urls": individual_image_urls,
         "model_path": str(model_path),
     }
     metadata_path = Path(config.paths.metrics) / f"{run_id}_metadata.json"
@@ -170,11 +183,18 @@ def _run_training_background(task_id: str, params: dict, config) -> None:
     """Thread target: run training and update the task registry."""
     with _tasks_lock:
         _tasks[task_id]["status"] = "running"
+        _tasks[task_id]["progress"] = 0
+
+    def _progress(current: int, total: int) -> None:
+        pct = round(current / total * 100) if total else 0
+        with _tasks_lock:
+            _tasks[task_id]["progress"] = pct
 
     try:
-        result = run_training(params, config)
+        result = run_training(params, config, progress_callback=_progress)
         with _tasks_lock:
             _tasks[task_id]["status"] = "completed"
+            _tasks[task_id]["progress"] = 100
             _tasks[task_id]["result"] = result
         logger.info(f"Task {task_id} completed successfully")
     except Exception as exc:
@@ -196,7 +216,7 @@ def submit_training_task(params: dict, config) -> str:
     """
     task_id = str(uuid.uuid4())
     with _tasks_lock:
-        _tasks[task_id] = {"status": "queued", "result": None, "error": None}
+        _tasks[task_id] = {"status": "queued", "progress": 0, "result": None, "error": None}
 
     thread = threading.Thread(
         target=_run_training_background,

@@ -202,6 +202,18 @@
                             <div class="loader" id="loader"></div>
                         </button>
                         <div id="statusMessage" class="status-message" role="status" aria-live="polite"></div>
+                        <div id="progressContainer" style="display:none; margin-top:10px;">
+                            <div class="flex justify-between text-[10px] text-on-surface-variant mb-1">
+                                <span>Training progress</span>
+                                <span id="progressLabel">0%</span>
+                            </div>
+                            <div class="w-full bg-surface-container-highest rounded-full h-1.5 overflow-hidden">
+                                <div id="progressBar"
+                                     class="h-1.5 rounded-full transition-all duration-500"
+                                     style="width:0%; background: linear-gradient(90deg, #0077b6, #7bd0ff);">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </form>
             </section>

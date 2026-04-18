@@ -393,6 +393,21 @@ async function runComparison() {
 
 // ── Async training poll ──────────────────────────────────────────────────────
 
+function setProgress(pct) {
+  const container = document.getElementById("progressContainer");
+  const bar       = document.getElementById("progressBar");
+  const label     = document.getElementById("progressLabel");
+  if (!container || !bar || !label) return;
+  container.style.display = "block";
+  bar.style.width = `${pct}%`;
+  label.textContent = `${pct}%`;
+}
+
+function hideProgress() {
+  const container = document.getElementById("progressContainer");
+  if (container) container.style.display = "none";
+}
+
 async function pollTask(taskId, statusMessage, buttonText, loader, runButton) {
   const POLL_INTERVAL_MS = 2000;
 
@@ -402,7 +417,13 @@ async function pollTask(taskId, statusMessage, buttonText, loader, runButton) {
     const res  = await fetch(`/api/tasks/${taskId}`);
     const task = await res.json();
 
+    if (task.status === "running" || task.status === "queued") {
+      const pct = task.progress ?? 0;
+      setProgress(pct);
+    }
+
     if (task.status === "completed") {
+      setProgress(100);
       statusMessage.textContent =
         task.result.message ||
         `Training completed. Mean reward: ${Number(task.result.metrics?.mean_reward ?? task.result.mean_reward).toFixed(2)}`;
@@ -413,6 +434,7 @@ async function pollTask(taskId, statusMessage, buttonText, loader, runButton) {
     }
 
     if (task.status === "failed") {
+      hideProgress();
       throw new Error(task.error || "Training job failed on server");
     }
 
@@ -422,6 +444,7 @@ async function pollTask(taskId, statusMessage, buttonText, loader, runButton) {
   runButton.disabled = false;
   buttonText.textContent = "Start Training";
   loader.style.display = "none";
+  setTimeout(hideProgress, 2000);
 }
 
 // ── Form submit ──────────────────────────────────────────────────────────────
