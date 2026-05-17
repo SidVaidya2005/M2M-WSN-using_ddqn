@@ -1013,9 +1013,30 @@ Network Lifetime (episodes) & 500 (max) & 500 (max) & Parity \\
 
 \subsubsection{Energy Consumption}
 
-\textit{[PLACEHOLDER: Insert analysis of per-step energy expenditure, SoC-weighted draw, and comparison between DDQN-WSN and DQN. Key variables: per\_node\_energy, mean\_soc series from training metadata.]}
+Per-episode energy consumption is tracked as the mean SoC drain across
+the network, $\Delta\overline{\mathrm{SoC}} = \overline{\mathrm{SoC}}_0
+- \overline{\mathrm{SoC}}_{T}$, where $\overline{\mathrm{SoC}}_0$ and
+$\overline{\mathrm{SoC}}_{T}$ are the mean state-of-charge fractions
+at episode start and end, respectively. Averaged over the final ten
+training episodes, DDQN-WSN exhibits a mean drain of $\approx 0.418$
+and standard DQN $\approx 0.413$ (Fig.~\ref{fig:energy_consumption}),
+i.e.\ both agents discharge roughly $41$--$42\%$ of fleet-wide SoC
+over the 1000-step episode. This is consistent with the
+$\sim\!24$--$25$ awake nodes per step implied by the coverage analysis
+below: with $e_{\text{awake}} = 1.0$ per awake-node-step and
+$E_{\max} = 100$, an awake population of $\sim\!25$ nodes drains
+roughly $25 \cdot 1000 / (50 \cdot 100) = 0.50$ of fleet SoC, of which
+a portion is recovered by the charging state machine.
 
-The SoC-weighted energy component of the reward function ($r_{\text{eng}}$) penalises activity on nodes with already-low charge, causing the agent to naturally route sensing responsibility toward nodes with higher available energy. \textit{[PLACEHOLDER: Quantitative comparison with DQN.]}
+The SoC-weighted energy component of the reward
+function~(Eq.~\eqref{eq:r_eng}) penalises activity on nodes that are
+already low on charge, so the agent is incentivised to route sensing
+responsibility toward higher-SoC nodes whenever the constraint layer
+permits. The near-identical drain profiles of the two agents reflect
+the parity observed across the other converged metrics
+(Table~\ref{tab:dqn_vs_ddqn_wsn}); a finer-grained per-node and
+per-step energy breakdown would require extending the trainer's
+logging schema and is left for future work.
 
 
 \begin{figure}[h]
