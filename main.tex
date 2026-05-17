@@ -375,8 +375,9 @@ normalized distance to the sink is
   \label{eq:dist}
 \end{equation}
 
-where $W = H = 500\,\text{m}$this normalized distance is used in both
-the observation vector and the distance-weighted energy draw model.
+where $W = H = 500\,\text{m}$. This normalized distance is used in
+both the observation vector and the distance-weighted energy draw
+model.
 
 At each discrete timestep $t$, the scheduling agent assigns a binary
 action $a_i^t \in \{0, 1\}$ to every node, where $0$ denotes SLEEP and
@@ -442,7 +443,16 @@ from the sink. SoC is updated as:
 
 \subsubsection{State of Health: Cycle-Based Degradation}
 
-Exponentially reduce State of Health (SoH) based on the Depth of Discharge (DoD) that is being discharged, to simulate accelerated degradation during deep discharges. In order to accurately simulate the behavior of batteries in real cases, our framework also accounts for the physical properties of the battery chemistry, the ambient temperature and C-rate dependencies. The extended cycle degradation contains a scale factor that takes into account specific cell chemistry (e.g., LFP versus NMC), activation energy, and a function that applies super-linear degradation for discharge currents that are higher than the optimal C-rate.
+State of Health (SoH) is reduced exponentially with the Depth of
+Discharge (DoD) traversed at each step, modelling the accelerated
+degradation that occurs during deep discharges. To capture the
+behaviour of real cells, the extended cycle-degradation expression
+also includes correction factors for cell chemistry, ambient
+temperature, and C-rate. The chemistry term encodes the dependence on
+specific cell formulation (e.g.\ LFP versus NMC), the temperature term
+captures Arrhenius-type activation energy effects, and the C-rate term
+applies a super-linear penalty for discharge currents exceeding the
+nominal optimum.
 
 \begin{equation}
 \begin{split}
@@ -452,7 +462,15 @@ Exponentially reduce State of Health (SoH) based on the Depth of Discharge (DoD)
 \label{eq:soh_cycle}
 \end{equation}
 
-In our environment of simulation, we assume isothermal operation at a nominal reference temperature (298 K), a uniform chemistry and standard sensor discharge rates. This means that the pre-factor reduces to our fundamental baseline parameter; so we've gotten rid of it. Thus, the pre-factor simplifies to our core baseline parameter, and we've eliminated it. The super-linear exponent reflects the empirically found imbalance between shallow and deep discharge cycles in damage.
+In the present simulation, all nodes are assumed to operate under
+nominal isothermal conditions (reference temperature $T_{\text{ref}} =
+298\,\text{K}$) with homogeneous cell chemistry and standard low-rate
+discharge. The chemistry, temperature, and C-rate correction terms in
+Eq.~\eqref{eq:soh_cycle} therefore reduce to unity, leaving only the
+baseline DoD-dependent cycle-aging term that is used in the
+experiments. The super-linear exponent $\alpha > 1$ reflects the
+empirically observed asymmetry between the damage caused by shallow
+and deep discharge cycles.
 
 \subsubsection{SoH: Calendar Aging}
 
@@ -498,7 +516,7 @@ calculations.
     \label{fig:Flow diagram}
 \end{figure}
 
-The methodology is organized around four design choices that together
+The methodology is organized around five design choices that together
 define the proposed agent: a centralized observation that exposes both
 energy state and spatial geometry (Sec.~\ref{sec:state_rep}); a
 factorized per-node binary action formulation that avoids the
@@ -1159,7 +1177,8 @@ lifetime across all 500 training episodes) while providing theoretical
 robustness against overestimation in higher-variance or longer-horizon
 deployment settings.
 
-Fortunately, there are certain necessary and desirable architectural advances that are not considered to be limitations of the centralized factorized schedule, and are planned for future use as deliberate deployment directions:
+Several architectural directions extend the present centralized
+factorized scheduler and are planned for future work:
 
 (i)~\textbf{Graph Neural Networks (GNNs) and Graph-Aware Policy Learning}, using a GNN backbone to capture the dynamics of the spatial topology, multi-hop communication links and coverage overlap naturally.
 
@@ -1224,35 +1243,44 @@ S.~Su,
 ``Q-learning-based routing protocol for wireless sensor networks,''
 2023.
 
-\bibitem{X. Wang2023}
-X. Wang, H. Chen, and S. Li,
-``A reinforcement learning-based sleep scheduling algorithm for compressive data gathering in wireless sensor networks,” EURASIP Journal on Wireless Communications and Networking,''
-vol. 2023, no. 28, 2023.
+\bibitem{wang2023}
+X.~Wang, H.~Chen, and S.~Li,
+``A reinforcement learning-based sleep scheduling algorithm for
+compressive data gathering in wireless sensor networks,''
+\emph{EURASIP Journal on Wireless Communications and Networking},
+vol.~2023, no.~28, 2023.
 
 \bibitem{Jin2022}
-W. Jin, J. Sun, K. Chi, and S. Zhang,
-``Deep reinforcement learning based scheduling for minimizing age of information in wireless powered sensor networks,” 
-Computer Communications, vol. 191, pp. 1–10, 2022.
+W.~Jin, J.~Sun, K.~Chi, and S.~Zhang,
+``Deep reinforcement learning based scheduling for minimizing age of
+information in wireless powered sensor networks,''
+\emph{Computer Communications}, vol.~191, pp.~1--10, 2022.
 
 \bibitem{nishant2025}
-T. A. H. Nishat, J.-H. Jeong, H. Jo, S. Xia, and J. Liu,
-``Reinforcement learning for adaptive battery management of structural health monitoring IoT sensor network,” 
-Applied Energy, vol. 390, p. 125731, 2025.
+T.~A.~H.~Nishat, J.-H.~Jeong, H.~Jo, S.~Xia, and J.~Liu,
+``Reinforcement learning for adaptive battery management of structural
+health monitoring IoT sensor network,''
+\emph{Applied Energy}, vol.~390, p.~125731, 2025.
 
 \bibitem{Manogaran2025}
-N. Manogaran, M. T. M. Raphael, R. Raja, A. K. Jayakumar, M. Nandagopal, B. Balusamy, and G. Ghinea,
-``Developing a novel adaptive double deep Q-learning-based routing strategy for IoT-based wireless sensor network with federated learning,” 
-Sensors, vol. 25, no. 10, p. 3084, 2025.
+N.~Manogaran, M.~T.~M.~Raphael, R.~Raja, A.~K.~Jayakumar,
+M.~Nandagopal, B.~Balusamy, and G.~Ghinea,
+``Developing a novel adaptive double deep Q-learning-based routing
+strategy for IoT-based wireless sensor network with federated
+learning,''
+\emph{Sensors}, vol.~25, no.~10, p.~3084, 2025.
 
 \bibitem{Kim2024}
-H. Kim, Y.-J. Kim, and W.-T. Kim,
-``Deep reinforcement learning-based adaptive scheduling for wireless time-sensitive networking,”
-Sensors, vol. 24, no. 16, p. 5281, 2024.
+H.~Kim, Y.-J.~Kim, and W.-T.~Kim,
+``Deep reinforcement learning-based adaptive scheduling for wireless
+time-sensitive networking,''
+\emph{Sensors}, vol.~24, no.~16, p.~5281, 2024.
 
 \bibitem{Jaber2024}
-M. M. Jaber et al., 
-``Q-learning based task scheduling and energy-saving MAC protocol for wireless sensor networks,” 
-Wireless Networks, vol. 30, pp. 4989–5005, 2024.
+M.~M.~Jaber \emph{et al.},
+``Q-learning based task scheduling and energy-saving MAC protocol for
+wireless sensor networks,''
+\emph{Wireless Networks}, vol.~30, pp.~4989--5005, 2024.
 
 \end{thebibliography}
 
