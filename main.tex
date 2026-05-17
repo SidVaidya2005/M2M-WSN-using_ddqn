@@ -978,11 +978,22 @@ Policy performance is characterised by the converged behaviour observed
 during training. Rather than separate off-policy evaluation runs, the
 converged policy is represented by the moving average of the final 10
 training episodes---a standard proxy for converged policy quality in
-episodic settings. Metrics reported include: coverage fraction, mean SoH,
-alive fraction, episode reward, and network lifetime (the episode index at
-which $\text{alive\_fraction} < 1 - \delta$). Training curves smoothed
-with a 10-episode moving average are reported to assess convergence
-stability across the full 500-episode training run.
+episodic settings. Metrics reported include: coverage fraction, mean
+SoH, alive fraction, episode reward, and within-episode network
+lifetime, defined operationally as
+\begin{equation}
+  T_{\text{life}} = \min\!\big\{ t \in [1, T_{\max}] :
+  \text{dead\_fraction}(t) > \delta \big\},
+  \label{eq:lifetime}
+\end{equation}
+capped at $T_{\max} = 1000$ steps when the death threshold is never
+breached within the episode. Because per-node SoH is strictly
+non-increasing, the within-episode alive fraction is monotone, so the
+event $\text{alive\_fraction}_{\text{end}}(e) \geq 1 - \delta$
+recorded at the end of every training episode $e$ implies
+$T_{\text{life}}(e) = T_{\max}$ for that episode. Training curves
+smoothed with a 10-episode moving average are reported to assess
+convergence stability across the full 500-episode training run.
 
 % -----------------------------------------------------------------------
 \section{Results and Discussion}
@@ -1010,7 +1021,7 @@ Final Coverage (\%) & 96.45\% & 96.36\% & $-0.09$ pp \\
 Mean SoH at termination & 0.99968 & 0.99968 & $\approx$ Parity \\
 \hline
 
-Network Lifetime (episodes) & 500 (max) & 500 (max) & Parity \\
+Network Lifetime $T_{\text{life}}$ (steps) & $\geq 1000$ ($T_{\max}$) & $\geq 1000$ ($T_{\max}$) & Parity \\
 \hline
 
 \end{tabularx}
@@ -1073,8 +1084,25 @@ Coverage is computed over a fixed $20 \times 20$ grid (400 sample points) with a
 
 \subsubsection{Network Lifetime}
 
-Network lifetime is defined as the episode index at which the fraction of dead nodes first exceeds $\delta = 0.3$ — i.e., when more than 15 of 50 nodes have permanently failed. 
-The SoH degradation model ensures that nodes cannot be repeatedly deep-discharged without long-term health consequences, making network lifetime a more demanding metric than simple SoC depletion counts.
+Network lifetime is reported as the within-episode quantity
+$T_{\text{life}}$ defined in Eq.~\eqref{eq:lifetime}: the first
+timestep at which more than $\delta N = 15$ of the $50$ nodes have
+permanently failed, or $T_{\max} = 1000$ if no such timestep occurs.
+This distinguishes operational survival time inside a single
+deployment (measured in steps) from the training horizon (measured
+in episodes).
+
+Across the full 500-episode training run, both DDQN-WSN and standard
+DQN reach the end of every episode with at least $1 - \delta = 70\%$
+of nodes alive. Since per-node SoH degradation is irreversible and
+the within-episode alive fraction is therefore monotone
+non-increasing, the absence of an end-of-episode breach is sufficient
+to conclude that the death threshold was not crossed at any earlier
+step either: $T_{\text{life}} = T_{\max} = 1000$ steps for every
+training episode of both agents. The SoH-aware degradation model
+ensures that nodes cannot be repeatedly deep-discharged without
+long-term health consequences, so this within-episode lifetime is a
+more demanding metric than a simple SoC-depletion count would be.
 
 \subsubsection{SoC Distribution and Load Balance}
 
