@@ -1115,10 +1115,6 @@ An important question is whether the performance is primarily due to the learned
 The \textbf{Constraint-Only} setting structurally failed as the heuristic rules seemed to have worked well in preventing immediate node deaths due to the random base actions, but the coverage fluctuated between $\sim$50-55\% around the time of the random base actions. This illustrates how inadequate deterministic rules are for spatial coordination.
 
 In contrast, the \textbf{Unconstrained DDQN} was able to learn a basic scheduling problem, but had failures from boundary-case starvation events (around 12\% failure rate at end-of-episode) that were prevented by the constraint layer. The full \textbf{DDQN-WSN} (RL policy with constraints) greatly outperformed both. This illustrates synergy: low level survival heuristics and absolute boundaries are granted to the constraint layer, which thus supports stable training, while multi-node spatial orchestration and long horizon battery health optimization is still the core of the learned RL policy.
-\subsubsection{Hyperparameter Sensitivity}
-
-\textit{[PLACEHOLDER: Leave empty for now — to be filled with hyperparameter sensitivity results.]}
-
 \subsection{Discussion: Why DDQN-WSN Works}
 
 The performance advantage of DDQN-WSN over standard DQN can be attributed to three interacting factors:
