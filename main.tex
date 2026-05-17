@@ -76,8 +76,10 @@ policies—including greedy wake-up, round-robin, and static threshold
 approaches—fail to account for the nonlinear coupling between energy
 consumption, battery State of Health (SoH), and spatial coverage.
 Standard Deep Q-Network (DQN) approaches partially address this via
-learned scheduling but suffer from systematic Q-value overestimation
-that destabilizes training in multi-node, multi-objective settings.
+learned scheduling but are theoretically susceptible to systematic
+Q-value overestimation, a property whose impact is expected to grow
+with the dimensionality and variance of multi-node, multi-objective
+settings.
 
 This paper presents \textbf{DDQN-WSN}, a constraint-aware
 \textit{factorized} Double Deep Q-Network agent trained in a Gymnasium
@@ -152,9 +154,9 @@ approximation over state-action value space; however, standard DQN uses
 the same network to both \textit{select} and \textit{evaluate} the
 next-state action, producing systematic Q-value overestimation that is
 particularly pronounced in high-dimensional, correlated per-node action
-spaces. This overestimation leads to unstable training, inflated value
-estimates for suboptimal actions, and premature policy
-convergence—all critical failure modes in the multi-node,
+spaces. This overestimation is a well-documented theoretical
+failure mode of standard DQN whose practical impact is expected to
+grow with the dimensionality and variance of the multi-node,
 multi-objective WSN scheduling problem. To address these gaps, this
 work contributes the following: (i)~an empirical SoC/SoH-aware
 Gymnasium-compliant WSN simulation environment incorporating a surrogate
@@ -1346,7 +1348,7 @@ near-depletion regime.
 
 \textbf{Static topology:} Node positions are randomized at episode start but remain fixed within an episode. Mobile sensor networks and environments with node addition/removal are not currently supported.
 
-\textbf{Homogeneous hardware:} All nodes share identical battery parameters ($E_{\max},; k_{\text{cycle}},; \alpha$). Real deployments may involve heterogeneous hardware with differing capacity and degradation characteristics.
+\textbf{Homogeneous hardware:} All nodes share identical battery parameters ($E_{\max}$, $k_{\text{cycle}}$, $\alpha$). Real deployments may involve heterogeneous hardware with differing capacity and degradation characteristics.
 
 \textbf{Simulation fidelity:} The battery model captures the dominant degradation mechanisms (DoD cycling and calendar aging) but omits temperature effects, manufacturing variance, and charge-rate-dependent aging. Bridging the simulation-to-real gap for physical deployment would require calibration against real cell discharge data.
 
