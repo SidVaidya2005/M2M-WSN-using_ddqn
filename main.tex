@@ -415,6 +415,16 @@ Although the agent directly optimises the raw coverage, by monitoring the covera
 
 \subsection{Battery Model}
 
+The networks considered in this paper are \emph{rechargeable WSNs}:
+each node is equipped with an on-board energy buffer and may enter a
+low-power charging state that recovers SoC from an assumed local
+replenishment source (e.g.\ a solar harvester, a periodic
+wireless-power transmitter, or a mobile charger). The replenishment
+source itself is abstracted---only its effect on per-node SoC is
+modelled---so that the same scheduler applies regardless of the
+specific harvesting hardware. The full charging state machine is
+described in Sec.~\ref{sec:exec_layer}.
+
 Each node $i$ carries an independent \texttt{BatteryModel} instance
 initialized at full charge ($\text{SoC}_i = E_{\max} = 100$) and full
 health ($\text{SoH}_i = 1.0$).
