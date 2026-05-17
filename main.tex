@@ -1033,11 +1033,12 @@ Both agents are trained from scratch with seed 42. Evaluation runs use
 $\varepsilon = 0$ (fully greedy) to measure the learned policy without
 exploration noise.
 
-\subsection{Evaluation Protocol}
+\subsection{Evaluation Protocol (Training-Time)}
+\label{sec:eval_protocol}
 
-Policy performance is characterised by the converged behaviour observed
-during training. Rather than separate off-policy evaluation runs, the
-converged policy is represented by the moving average of the final 10
+The empirical analysis in this paper characterises the converged
+behaviour observed during training. Concretely, the converged policy
+of each agent is represented by the moving average of the final ten
 training episodes---a standard proxy for converged policy quality in
 episodic settings. Metrics reported include: coverage fraction, mean
 SoH, alive fraction, episode reward, and within-episode network
@@ -1056,12 +1057,39 @@ $T_{\text{life}}(e) = T_{\max}$ for that episode. Training curves
 smoothed with a 10-episode moving average are reported to assess
 convergence stability across the full 500-episode training run.
 
+\textit{Held-out evaluation.} An external benchmark of the converged
+policy should additionally report performance on a separate
+held-out evaluation set: the trained policy is frozen, exploration
+is disabled ($\varepsilon = 0$), and a number of deterministic test
+episodes are rolled out on previously unseen random topologies. A
+reasonable minimum protocol is five independent seeds with twenty
+deterministic test episodes per seed (with means and standard
+deviations, ideally $95\%$ confidence intervals); ten seeds with
+fifty test episodes each yields tighter confidence intervals when
+compute permits. Such a held-out evaluation constitutes the
+recommended protocol for an external benchmark and is planned as part
+of the deployment validation. The training-time results presented in
+this paper therefore characterise convergence behaviour rather than
+generalisation, and should be read in that scope.
+
 % -----------------------------------------------------------------------
 \section{Results and Discussion}
 
 \subsection{Overall Performance Comparison}
 
-Table~\ref{tab:dqn_vs_ddqn_wsn} summarises the final performance of DDQN-WSN versus standard DQN, represented by the moving average of the final 10 training episodes of each agent's converged policy. Mean SoC at termination is derived from the final entry of the per-episode \texttt{mean\_soc} series recorded during training.
+\emph{All numerical results in this section are training-time moving
+averages computed over the final ten episodes of each agent's
+500-episode training run
+(Sec.~\ref{sec:eval_protocol}); they characterise convergence
+behaviour rather than held-out generalisation, and a separate
+deterministic held-out evaluation is planned as part of deployment
+validation.}
+
+Table~\ref{tab:dqn_vs_ddqn_wsn} summarises the final performance of
+DDQN-WSN versus standard DQN, represented by the moving average of
+the final 10 training episodes of each agent's converged policy.
+Mean SoC at termination is derived from the final entry of the
+per-episode \texttt{mean\_soc} series recorded during training.
 
 \begin{table}[h]
 \centering
