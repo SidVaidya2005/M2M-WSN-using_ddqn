@@ -407,7 +407,19 @@ $r_s = 100\,\text{m}$:
 Besides, in order to explicitly describe the overlapping of the sensing area and the efficiency of the space coverage, the Coverage Redundancy Metric (CRM) is introduced which is defined as the mean number of active sensing nodes that covers one of the covered grid points.
 
 \begin{equation}
-  \Gamma(t) = \frac{\sum_{\mathbf{g} \in \mathcal{G}} \sum_{i=1}^{N} \mathbf{1}\big[ a_i^t = 1,\, \neg\text{dead}(i),\, \|\mathbf{p}_i - \mathbf{g}\|_2 \leq r_s \big]}{\sum_{\mathbf{g} \in \mathcal{G}} \mathbf{1}\big[\exists j : a_j^t = 1,\, \neg\text{dead}(j),\, \|\mathbf{p}_j - \mathbf{g}\|_2 \leq r_s \big]}.
+  \Gamma(t) =
+  \begin{cases}
+    \dfrac{\displaystyle\sum_{\mathbf{g} \in \mathcal{G}}
+           \sum_{i=1}^{N} \mathbf{1}\big[ a_i^t = 1,\,
+           \neg\text{dead}(i),\,
+           \|\mathbf{p}_i - \mathbf{g}\|_2 \leq r_s \big]}
+          {\displaystyle\sum_{\mathbf{g} \in \mathcal{G}}
+           \mathbf{1}\big[\exists j : a_j^t = 1,\,
+           \neg\text{dead}(j),\,
+           \|\mathbf{p}_j - \mathbf{g}\|_2 \leq r_s \big]},
+      & \text{if } \text{coverage}(t) > 0, \\[6pt]
+    0, & \text{otherwise.}
+  \end{cases}
   \label{eq:redundancy}
 \end{equation}
 
@@ -589,22 +601,34 @@ The activity ratio is updated per step as:
 
 providing the agent with a smoothed estimate of each node's recent duty
 cycle. The local awake-neighbour density score is defined as the
-fraction of other alive AWAKE nodes within sensing radius $r_s$ of node
-$i$, normalized by the maximum possible neighbour count:
+fraction of node $i$'s in-radius neighbours that are alive and AWAKE
+at step $t$. Let
+\begin{equation}
+  \mathcal{N}_i = \big\{ j \neq i :
+  \|\mathbf{p}_i - \mathbf{p}_j\|_2 \leq r_s \big\}
+  \label{eq:neighbourhood}
+\end{equation}
+denote the (static) set of geometric neighbours of node $i$ within
+sensing radius $r_s$. The awake-neighbour density is then
 
 \begin{equation}
-  n_i^{\text{awake}} = \frac{1}{N - 1}\,
-  \Big|\big\{ j \neq i :\, \tilde{a}_j^{\,t} = 1,\,
-        \neg\text{dead}(j),\,
-        \|\mathbf{p}_i - \mathbf{p}_j\|_2 \leq r_s \big\}\Big|,
+  n_i^{\text{awake}} = \frac{\Big|\big\{ j \in \mathcal{N}_i :\,
+        \tilde{a}_j^{\,t} = 1,\, \neg\text{dead}(j) \big\}\Big|}
+        {|\mathcal{N}_i| + \varepsilon},
   \label{eq:awake_density}
 \end{equation}
 
-so that $n_i^{\text{awake}} \in [0, 1]$. The combination of normalized
-coordinates and local awake-neighbour density gives the policy direct
-access to the spatial geometry that drives the coverage objective,
-addressing the limitation of distance-to-sink as the sole geometric
-feature. For $N = 50$ nodes, $|\mathbf{s}^t| = 450$.
+with $\varepsilon$ a small positive constant ($\varepsilon \ll 1$,
+e.g.\ $10^{-6}$) that keeps the expression well-defined when a node
+has no geometric neighbours within $r_s$ (in which case $n_i^{\text{awake}}
+\to 0$). This normalisation gives $n_i^{\text{awake}} \in [0, 1]$ and
+expresses a true \emph{local} density, independent of the global node
+count $N$ and therefore stable in sparse or non-uniform deployments.
+The combination of normalised coordinates and local awake-neighbour
+density gives the policy direct access to the spatial geometry that
+drives the coverage objective, addressing the limitation of
+distance-to-sink as the sole geometric feature. For $N = 50$ nodes,
+$|\mathbf{s}^t| = 450$.
 
 \subsection{Factorized Multi-Binary Action Formulation}
 \label{sec:action_factor}
@@ -694,6 +718,27 @@ under the executed-action distribution induced by $\mathcal{T}$, and
 the feasibility layer reduces the dimensionality of the scheduling
 problem the policy must solve in regions of state space where domain
 knowledge already determines the correct action.
+
+\textit{Edge cases.} The coverage continuity rule is realised
+deterministically in three respects. \emph{(i)~No eligible
+neighbour.} If the constrained $\arg\min$ in Eq.~\eqref{eq:coop} is
+empty (every other node is dead, charging, or already AWAKE), the
+rule is silently skipped for node $i$ and $\tilde{a}_i$ retains the
+value already produced by the charging rule. \emph{(ii)~Multiple
+low-SoC nodes targeting the same neighbour.} Low-SoC AWAKE nodes are
+processed in ascending order of node index, and any node selected as
+$j^*$ within the current step is recorded in a per-step woken-set;
+candidates already in this set are excluded from subsequent
+$\arg\min$ searches, so each neighbour can be woken at most once per
+step. Ties in $\arg\min$ are therefore broken by the index of the
+triggering low-SoC node. \emph{(iii)~Neighbour itself near the
+charging threshold.} Only nodes that have \emph{already} entered the
+charging state (and were therefore added to the charging set by the
+charging feasibility rule) are excluded as candidates; a neighbour
+whose SoC is close to, but not yet below, the charging threshold
+remains eligible and may be woken, after which the next step's
+charging rule will activate if its SoC has fallen below the
+threshold.
 
 \subsection{Reward Design}
 \label{sec:reward}
