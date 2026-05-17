@@ -1261,13 +1261,49 @@ a_i^* = \arg\max_a Q_\theta(s', a)_i
 
 Both agents converge to comparable throughput levels, with the training curves largely overlapping after episode $\sim$50. The DDQN-WSN curve exhibits marginally lower variance in the mid-training range (episodes 100–300). Final mean episode reward: DDQN-WSN 8,305.82 vs. DQN 8,297.79 — a difference of +8.03 (+0.10\%), reflecting effective parity at convergence.
 
-\subsubsection{Constraint-Layer Analysis: RL Contribution vs. Heuristic Override}
+\subsubsection{Constraint-Layer Analysis: RL Contribution vs.\ Heuristic Override}
 
-An important question is whether the performance is primarily due to the learned DDQN policy or simply due to the deterministic constraint-layer execution (i.e. forced charging and cooperative wake-ups). For this purpose, an ablation study compared two variants with the full system: \textbf{Constraint-Only} (which proposed random actions only, using constraints to ensure survivability) and \textbf{Unconstrained DDQN} (which ignores constraints completely).
+A natural question is whether the converged performance of DDQN-WSN
+is driven primarily by the learned policy or by the deterministic
+constraint-aware execution layer~$\mathcal{T}$ alone. The
+constraint layer enforces only two local feasibility rules---a
+charging rule that takes near-depleted nodes offline, and the
+coverage-continuity rule of Eq.~\eqref{eq:coop} that promotes a
+single nearest neighbour---neither of which contains any explicit
+notion of global coverage, energy efficiency, or charge-balance
+fairness. Three variants are therefore of structural interest:
 
-The \textbf{Constraint-Only} setting structurally failed as the heuristic rules seemed to have worked well in preventing immediate node deaths due to the random base actions, but the coverage fluctuated between $\sim$50-55\% around the time of the random base actions. This illustrates how inadequate deterministic rules are for spatial coordination.
+\begin{itemize}
+  \item \textbf{Constraint-Only.} Raw actions are sampled uniformly
+    at random from $\{0,1\}^N$ and filtered by~$\mathcal{T}$. The
+    charging rule prevents the most catastrophic deep-discharge
+    deaths and the cooperative wake-up rule maintains a local
+    handover when an AWAKE node depletes; however, the random
+    actions provide no global spatial coordination, so coverage is
+    expected to fluctuate well below the $96\%+$ level attained by
+    DDQN-WSN.
+  \item \textbf{Unconstrained DDQN.} The DDQN policy is trained and
+    executed without~$\mathcal{T}$, so raw actions are applied
+    directly. The agent must learn the survivability constraints
+    from reward signals alone; in regions of state space where a
+    single misstep triggers an irreversible deep-discharge cycle,
+    boundary-case starvation events are expected to increase
+    relative to the full system.
+  \item \textbf{Full DDQN-WSN.} The combination of the learned
+    policy and~$\mathcal{T}$ is expected to outperform both
+    ablations: $\mathcal{T}$ removes the worst feasibility failures
+    so that the policy can specialise on global spatial
+    orchestration and long-horizon SoH preservation, while the
+    learned policy supplies the global coordination that the
+    deterministic rules lack.
+\end{itemize}
 
-In contrast, the \textbf{Unconstrained DDQN} was able to learn a basic scheduling problem, but had failures from boundary-case starvation events (around 12\% failure rate at end-of-episode) that were prevented by the constraint layer. The full \textbf{DDQN-WSN} (RL policy with constraints) greatly outperformed both. This illustrates synergy: low level survival heuristics and absolute boundaries are granted to the constraint layer, which thus supports stable training, while multi-node spatial orchestration and long horizon battery health optimization is still the core of the learned RL policy.
+\textit{Planned ablation (Table TBD).} A full quantitative ablation
+table reporting coverage, end-of-episode failure rate, mean reward,
+mean SoH, and within-episode lifetime for each of the three variants
+above is part of the deployment-validation phase and is left for a
+companion experimental study. The qualitative argument given here
+should not be read as a substitute for those numbers.
 \subsection{Discussion: Role of the Double DQN Target}
 
 The converged-policy results in Table~\ref{tab:dqn_vs_ddqn_wsn} show
