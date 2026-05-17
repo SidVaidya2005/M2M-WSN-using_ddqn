@@ -534,7 +534,23 @@ calculations.
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\textwidth]{Flow.jpeg}
-    \caption{Flowchart of the proposed methodology}
+    \caption{End-to-end pipeline of the proposed
+    constraint-aware factorized DDQN scheduler. The centralized
+    per-node observation $\mathbf{s}_t$ concatenates nine features per
+    node (SoC, SoH, previous executed action $\tilde{a}_i^{\,t-1}$,
+    normalised distance to sink $d_i$, normalised coordinates
+    $x_i/W$ and $y_i/H$, local awake-neighbour density
+    $n_i^{\text{awake}}$, EMA activity ratio $\rho_i^t$, and charging
+    flag $c_i^t$); the parameter-shared DDQN backbone emits the
+    factorized raw action $\mathbf{a}_t \in \{0,1\}^N$ via per-node
+    argmax; the constraint-aware execution layer
+    $\mathcal{T}(\mathbf{s}_t, \mathbf{a}_t)$ produces the executed
+    action $\tilde{\mathbf{a}}_t$ (charging-feasibility and
+    coverage-continuity rules); the WSN environment applies
+    $\tilde{\mathbf{a}}_t$, returning $(\mathbf{s}_{t+1}, r_t, d_t)$;
+    and the tuple $(\mathbf{s}_t, \tilde{\mathbf{a}}_t, r_t,
+    \mathbf{s}_{t+1}, d_t)$ is stored in the replay buffer that
+    drives the Double DQN target update.}
     \label{fig:Flow diagram}
 \end{figure}
 
@@ -1108,7 +1124,12 @@ logging schema and is left for future work.
 \begin{figure}[h]
 \centering
 \includegraphics[width=\linewidth]{energy_consumption (1).png}
-\caption{Per-episode energy consumption comparison between DDQN-WSN and DQN over 500 training episodes.}
+\caption{Per-episode energy consumption, defined as the mean SoC drain
+across the network within an episode
+$\Delta\overline{\mathrm{SoC}} = \overline{\mathrm{SoC}}_0 -
+\overline{\mathrm{SoC}}_{T}$ (dimensionless, $[0,1]$). DDQN-WSN vs.\
+standard DQN over 500 training episodes; curves are smoothed with a
+10-episode moving average.}
 \label{fig:energy_consumption}
 \end{figure}
 
