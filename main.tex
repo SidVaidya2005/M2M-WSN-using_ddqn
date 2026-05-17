@@ -96,16 +96,19 @@ normalized node coordinates and a local awake-neighbour density score
 that exposes spatial geometry to the policy—and outputs per-node
 SLEEP/AWAKE decisions. Reward is a weighted sum of four objectives:
 area coverage, SoC-weighted energy efficiency, battery health
-preservation, and charge-level fairness. Ablation against standard DQN
-under identical environment and hyperparameter conditions demonstrates
-that both agents achieve highly competitive results—exceeding 96\% mean
-area coverage and sustaining full network lifetime across all 500
-training episodes without triggering the 30\% node-death threshold.
-Crucially, the Double DQN target formulation provides theoretical
-robustness against the systematic Q-value overestimation that compounds
-across the 50-node factorized action space, a property that becomes
-critical for training stability and policy generalizability in
-longer-horizon or higher-variance deployment settings.
+preservation, and charge-level fairness. Ablation against standard DQN under identical environment and
+hyperparameter conditions shows that the two agents reach
+near-parity on every converged metric measured at training time:
+both exceed $96\%$ mean area coverage and neither breaches the $30\%$
+node-death threshold within an episode across the entire 500-episode
+training run. DDQN-WSN is therefore reported as achieving performance
+comparable to DQN under the present setting, while providing a more
+robust target-estimation mechanism that decouples action selection
+from action evaluation and is theoretically less susceptible to the
+systematic Q-value overestimation that compounds across $N$
+parallel per-node argmax operations---a stability property that is
+expected to matter most in longer-horizon or higher-variance
+deployment settings beyond the scope of this study.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -174,12 +177,13 @@ continuity, with replay transitions stored using $\tilde{\mathbf{a}}_t$;
 coverage, energy efficiency, battery health, and charge-level fairness;
 (v)~application of the Double DQN target to the factorized per-node
 Q-head, decoupling action selection (online network) from value
-evaluation (target network) and eliminating the per-node overestimation
-bias that would otherwise compound additively across $N$ parallel
-argmax operations; and (vi)~a direct DDQN-vs-DQN empirical ablation
-under identical environment and hyperparameter conditions, quantifying
-the stability advantage of the decoupled target on the factorized
-scheduling problem.
+evaluation (target network) so that the per-node maximization bias
+does not compound additively across the $N$ parallel argmax
+operations of the factorized head; and (vi)~a direct DDQN-vs-DQN
+empirical ablation under identical environment and hyperparameter
+conditions, characterising the parity of converged behaviour in the
+500-episode setting and the theoretical robustness benefit of the
+decoupled target on the factorized scheduling problem.
 
 % -----------------------------------------------------------------------
 \section{Related Work}
@@ -1136,15 +1140,39 @@ An important question is whether the performance is primarily due to the learned
 The \textbf{Constraint-Only} setting structurally failed as the heuristic rules seemed to have worked well in preventing immediate node deaths due to the random base actions, but the coverage fluctuated between $\sim$50-55\% around the time of the random base actions. This illustrates how inadequate deterministic rules are for spatial coordination.
 
 In contrast, the \textbf{Unconstrained DDQN} was able to learn a basic scheduling problem, but had failures from boundary-case starvation events (around 12\% failure rate at end-of-episode) that were prevented by the constraint layer. The full \textbf{DDQN-WSN} (RL policy with constraints) greatly outperformed both. This illustrates synergy: low level survival heuristics and absolute boundaries are granted to the constraint layer, which thus supports stable training, while multi-node spatial orchestration and long horizon battery health optimization is still the core of the learned RL policy.
-\subsection{Discussion: Why DDQN-WSN Works}
+\subsection{Discussion: Role of the Double DQN Target}
 
-The performance advantage of DDQN-WSN over standard DQN can be attributed to three interacting factors:
+The converged-policy results in Table~\ref{tab:dqn_vs_ddqn_wsn} show
+that DDQN-WSN and standard DQN reach effective parity under the
+present 500-episode setting; the rationale for adopting the Double
+DQN target on the factorized Q-head is therefore best read as a
+structural argument rather than a claim of empirical superiority at
+this horizon. Three interacting factors are relevant:
 
-\textbf{Stable value estimation:} By decoupling action selection from evaluation, DDQN avoids the compounding overestimation that, in a 50-node network, would inflate the bootstrapped return estimate by the sum of per-node max-biases. Stable estimates allow the policy to converge toward genuinely long-horizon optimal scheduling rather than locally greedy patterns.
+\textbf{Theoretically lower target-estimation bias:} Decoupling action
+selection (online network) from value evaluation (target network)
+removes the per-node maximization bias that would otherwise compound
+additively across the $N = 50$ argmax operations of the factorized
+Q-head (cf.\ Eqs.~\eqref{eq:ddqn_target} and \eqref{eq:dqn_target2}).
+This property is not directly measured here but is a well-established
+benefit of the Double DQN target in higher-variance or
+longer-horizon settings.
 
-\textbf{Domain-informed reward shaping:} The four-component reward function ensures that no single objective dominates. The high coverage weight ($w_{\text{cov}} = 10$) provides a strong primary signal, while energy and balance components act as regularizers that prevent degenerate policies (e.g., always awake or round-robin without spatial awareness). The SoH component, while low-weighted ($w_{\text{soh}} = 1$), is critical for long-episode runs where cumulative degradation determines network lifetime under the empirical SoC/SoH-aware degradation model.
+\textbf{Domain-informed reward shaping:} The four-component reward
+function ensures that no single objective dominates. The high
+coverage weight ($w_{\text{cov}} = 10$) provides the primary signal,
+while the energy and balance components act as regularisers that
+discourage degenerate policies (e.g.\ always-awake or round-robin
+schedules with no spatial awareness). The SoH component, even at low
+weight ($w_{\text{soh}} = 1$), aligns the policy with shallow-discharge
+patterns under the SoC/SoH-aware degradation model.
 
-\textbf{Environment-level cooperation:} The cooperative wake-up mechanism allows the agent to implicitly delegate spatial coverage responsibility without needing to explicitly model neighbor states. When a depleted node transitions to charging, its nearest neighbor is automatically activated, maintaining local coverage continuity. This reduces the dimensionality of the scheduling problem the agent must solve.
+\textbf{Environment-level cooperation:} The cooperative wake-up rule in
+the constraint-aware execution layer transfers sensing responsibility
+to a healthy neighbour whenever an AWAKE node falls below the
+cooperative-wake SoC threshold, reducing the dimensionality of the
+scheduling problem that the agent must solve in the
+near-depletion regime.
 
 \subsection{Limitations and Broader Impact}
 
@@ -1186,13 +1214,18 @@ exposes spatial geometry directly to the policy—and optimizes a
 four-component reward balancing area coverage, SoC-weighted energy
 efficiency, battery health preservation, and charge-level fairness.
 Direct comparison against standard DQN under identical conditions
-confirms that the Double DQN target computation eliminates the per-node
-maximization bias that would otherwise compound additively across the
-50-node factorized action space, yielding near-parity on all converged
-metrics (96.36\% vs.\ 96.45\% coverage, 0.99968 mean SoH, full network
-lifetime across all 500 training episodes) while providing theoretical
-robustness against overestimation in higher-variance or longer-horizon
-deployment settings.
+shows that, within the present 500-episode training horizon,
+DDQN-WSN achieves performance comparable to DQN on every converged
+metric ($96.36\%$ vs.\ $96.45\%$ coverage, $0.99968$ mean SoH, no
+within-episode network collapse observed across all 500 training
+episodes), while providing a more robust target-estimation mechanism
+for the factorized per-node scheduling problem: by selecting the
+next-state action with the online network and evaluating it with the
+target network, the per-node maximization bias does not compound
+additively across the $N$ argmax operations of the factorized
+Q-head. The empirical benefit of this property is expected to be most
+visible under longer-horizon or higher-variance deployment settings
+than those exercised here.
 
 Several architectural directions extend the present centralized
 factorized scheduler and are planned for future work:
