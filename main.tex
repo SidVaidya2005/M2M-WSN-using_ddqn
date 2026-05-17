@@ -447,43 +447,39 @@ from the sink. SoC is updated as:
 
 \subsubsection{State of Health: Cycle-Based Degradation}
 
-State of Health (SoH) is reduced exponentially with the Depth of
-Discharge (DoD) traversed at each step, modelling the accelerated
-degradation that occurs during deep discharges. To capture the
-behaviour of real cells, the extended cycle-degradation expression
-also includes correction factors for cell chemistry, ambient
-temperature, and C-rate. The chemistry term encodes the dependence on
-specific cell formulation (e.g.\ LFP versus NMC), the temperature term
-captures Arrhenius-type activation energy effects, and the C-rate term
-applies a super-linear penalty for discharge currents exceeding the
-nominal optimum.
+Cycle-based State of Health (SoH) loss is modelled as a super-linear
+function of the Depth of Discharge (DoD) traversed at each timestep,
+capturing the empirically observed asymmetry whereby deep discharge
+cycles damage cells disproportionately more than shallow ones. All
+nodes are assumed to operate under nominal isothermal conditions with
+homogeneous cell chemistry and a standard low-rate discharge profile;
+the cycle-aging law used in the simulation therefore reduces to a
+single DoD-dependent term parameterised by a baseline rate
+$k_{\text{cycle}}$ and an exponent $\alpha > 1$:
 
 \begin{equation}
-\begin{split}
-  \Delta\text{SoH}_i^{\text{cycle}} &= \kappa_{\text{chem}} \cdot k_{\text{cycle}} \cdot \exp\!\left( \frac{E_a}{R} \left( \frac{1}{T_{\text{ref}}} - \frac{1}{T_i} \right) \right) \\
-  &\quad \cdot f(\text{C-rate}) \cdot \left( \frac{|\text{SoC}_i^t - \text{SoC}_i^{t+1}|}{E_{\max}} \right)^{\!\alpha},
-\end{split}
+  \Delta\text{SoH}_i^{\text{cycle}} = k_{\text{cycle}} \cdot
+  \left( \frac{|\text{SoC}_i^t - \text{SoC}_i^{t+1}|}{E_{\max}}
+  \right)^{\!\alpha}.
 \label{eq:soh_cycle}
 \end{equation}
 
-In the present simulation, all nodes are assumed to operate under
-nominal isothermal conditions (reference temperature $T_{\text{ref}} =
-298\,\text{K}$) with homogeneous cell chemistry and standard low-rate
-discharge. The chemistry, temperature, and C-rate correction terms in
-Eq.~\eqref{eq:soh_cycle} therefore reduce to unity, leaving only the
-baseline DoD-dependent cycle-aging term that is used in the
-experiments. The super-linear exponent $\alpha > 1$ reflects the
-empirically observed asymmetry between the damage caused by shallow
-and deep discharge cycles.
+Extensions that incorporate cell chemistry, Arrhenius-type
+temperature dependence, or C-rate corrections are straightforward
+in principle but are out of scope for the present surrogate
+simulation; the parameter values used in the experiments are listed
+in Table~\ref{tab:config}.
 
 \subsubsection{SoH: Calendar Aging}
 
-In addition to the calendar fade during each timestep (due to electrolyte decomposition and passive self-discharge reactions) SoH is also affected by cycling activity. In our controlled simulation reference conditions this term reduces to our constant fade rate.
+In addition to cycle-induced damage, SoH decreases passively at each
+timestep due to electrolyte decomposition and self-discharge
+reactions. Under the same controlled reference conditions, the
+calendar-aging law reduces to a constant per-step fade rate
+$k_{\text{cal}}$:
 
 \begin{equation}
-  \Delta\text{SoH}_i^{\text{cal}} = k_{\text{cal}} \cdot 
-  \exp\!\left( \frac{E_{a,\text{cal}}}{R} \Big( \frac{1}{T_{\text{ref}}} - \frac{1}{T_i} \Big) \right) \cdot
-  \exp\!\big( \beta \cdot \text{SoC}_i^t \big),
+  \Delta\text{SoH}_i^{\text{cal}} = k_{\text{cal}}.
   \label{eq:soh_cal}
 \end{equation}
 
