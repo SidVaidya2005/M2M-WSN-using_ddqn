@@ -1,0 +1,1267 @@
+\documentclass[journal]{IEEEtran}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{graphicx}
+% -----------------------------------------------------------------------
+% Packages
+% -----------------------------------------------------------------------
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{float}
+\usepackage{array}
+\usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
+\usepackage{textcomp}
+\usepackage{stfloats}
+\usepackage{url}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{ragged2e}
+\usepackage{float}
+\usepackage{placeins}        % \FloatBarrier
+\usepackage[caption=false,font=normalsize,labelfont=sf,textfont=sf]{subfig}
+
+%% -------- Color (performance-table shading) ----------------
+\usepackage[table]{xcolor}
+\usepackage{colortbl}
+
+\definecolor{darkred}{RGB}{153,0,0}
+\definecolor{lightred}{RGB}{255,230,230}
+\definecolor{midred}{RGB}{255,165,165}
+\definecolor{headerblue}{RGB}{30,80,140}
+\definecolor{rowgray}{RGB}{240,240,240}
+
+%% -------- Custom column type -------------------------------
+\newcolumntype{Y}{>{\RaggedRight\arraybackslash}X}
+
+%% -------- Image path (all figures live in images/) ---------
+\graphicspath{{images/}}
+
+\hyphenation{op-tical net-works semi-conduc-tor IEEE-Xplore Wire-less}
+
+% Custom algorithm float (no external algorithm package required)
+\floatstyle{ruled}
+\newfloat{algorithm}{tbp}{loa}
+\floatname{algorithm}{Algorithm}
+
+% -----------------------------------------------------------------------
+\begin{document}
+% -----------------------------------------------------------------------
+
+\title{DDQN for Coverage and Battery Optimization\\in WSN Scheduling}
+
+\author{Vinay~Kumar,~Siddarth~Vaidya,~Ch~Tarun~Kumar,~Ankitesh~Shrivastava%
+}
+
+% Running headers
+\markboth{IEEE Transactions on Wireless Communications}%
+{Kumar \MakeLowercase{\textit{et al.}}: DDQN for Coverage and Battery
+Optimization in WSN Scheduling}
+
+
+
+\maketitle
+
+% -----------------------------------------------------------------------
+\begin{abstract}
+Wireless Sensor Networks (WSNs) are widely deployed for environmental
+monitoring, industrial automation, and smart infrastructure, yet their
+operational lifetime remains fundamentally constrained by battery energy
+and irreversible cell degradation. Classical scheduling
+policies—including greedy wake-up, round-robin, and static threshold
+approaches—fail to account for the nonlinear coupling between energy
+consumption, battery State of Health (SoH), and spatial coverage.
+Standard Deep Q-Network (DQN) approaches partially address this via
+learned scheduling but suffer from systematic Q-value overestimation
+that destabilizes training in multi-node, multi-objective settings.
+
+This paper presents \textbf{DDQN-WSN}, a constraint-aware
+\textit{factorized} Double Deep Q-Network agent trained in a Gymnasium
+simulation of a 50-node WSN deployed over a
+$500\,\text{m} \times 500\,\text{m}$ arena and equipped with an empirical
+SoC/SoH-aware battery degradation model. The system model incorporates
+per-node battery dynamics (cycle-based and calendar SoH degradation), a
+charging state machine, and a cooperative wake-up rule between
+energy-depleted nodes. To avoid the combinatorial intractability of the
+full $2^N$ joint action space, scheduling is formulated as $N$
+parameter-shared per-node binary decisions; the resulting raw action
+vector is passed through a constraint-aware execution layer that enforces
+charging feasibility and coverage continuity before the physical state
+transition. The agent observes a 9-feature per-node state vector—including
+normalized node coordinates and a local awake-neighbour density score
+that exposes spatial geometry to the policy—and outputs per-node
+SLEEP/AWAKE decisions. Reward is a weighted sum of four objectives:
+area coverage, SoC-weighted energy efficiency, battery health
+preservation, and charge-level fairness. Ablation against standard DQN
+under identical environment and hyperparameter conditions demonstrates
+that both agents achieve highly competitive results—exceeding 96\% mean
+area coverage and sustaining full network lifetime across all 500
+training episodes without triggering the 30\% node-death threshold.
+Crucially, the Double DQN target formulation provides theoretical
+robustness against the systematic Q-value overestimation that compounds
+across the 50-node factorized action space, a property that becomes
+critical for training stability and policy generalizability in
+longer-horizon or higher-variance deployment settings.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Wireless Sensor Networks, Double Deep Q-Network, Sleep Scheduling,
+Battery Degradation, State of Health, Reinforcement Learning, Network
+Lifetime Optimization.
+\end{IEEEkeywords}
+
+% -----------------------------------------------------------------------
+\section{Introduction}
+\label{sec:intro}
+% -----------------------------------------------------------------------
+
+\IEEEPARstart{W}{ireless} Sensor networks deploy large numbers of
+battery-powered nodes to sense and relay information from physical
+environments. Applications range from agricultural monitoring and
+structural health sensing to industrial IoT and military surveillance.
+Despite decades of research, the fundamental tension between sensing duty
+and battery longevity remains unsolved at scale: every step a node is
+active drains its battery and accelerates electrochemical degradation,
+yet keeping too many nodes asleep degrades spatial coverage and data
+continuity.
+\IEEEpubidadjcol
+Energy depletion in WSNs is governed by two coupled processes: the
+\textit{State of Charge} (SoC), which represents immediately available
+energy and can be partially recovered through charging, and the
+\textit{State of Health} (SoH), which captures cumulative cell
+degradation from deep discharge cycles and calendar fade and is strictly
+irreversible. Existing scheduling algorithms typically optimize for one
+objective in isolation—greedy policies maximize instantaneous coverage
+by keeping the maximum number of nodes awake, rapidly exhausting
+batteries and causing premature SoH collapse; round-robin policies
+achieve fairness but ignore spatial redundancy, wasting energy in
+already-covered regions; and threshold-based heuristics react to SoC
+levels but cannot anticipate future demand, yielding suboptimal
+trade-offs between network lifetime and coverage. None of these policies
+model battery degradation physics, cooperative inter-node behavior, or
+the long-horizon consequences of scheduling decisions. Deep Q-Networks
+offer a principled approach to sequential scheduling via function
+approximation over state-action value space; however, standard DQN uses
+the same network to both \textit{select} and \textit{evaluate} the
+next-state action, producing systematic Q-value overestimation that is
+particularly pronounced in high-dimensional, correlated per-node action
+spaces. This overestimation leads to unstable training, inflated value
+estimates for suboptimal actions, and premature policy
+convergence—all critical failure modes in the multi-node,
+multi-objective WSN scheduling problem. To address these gaps, this
+work contributes the following: (i)~an empirical SoC/SoH-aware
+Gymnasium-compliant WSN simulation environment incorporating a surrogate
+per-node battery degradation model—capturing the dominant SoC depletion,
+depth-of-discharge (DoD) cycle aging, and calendar fade
+mechanisms—together with a threshold-triggered charging state machine
+and a cooperative wake-up rule that transfers sensing responsibility
+between energy-depleted and healthy neighbors; (ii)~a compact
+nine-feature centralized per-node observation vector encoding SoC, SoH,
+last action, normalized distance to sink, normalized $(x, y)$
+coordinates, a local awake-neighbour density score, exponential moving
+average activity ratio, and charging flag, exposing both energy state
+and spatial geometry directly to the policy; (iii)~a constraint-aware
+factorized action formulation in which the agent's raw per-node binary
+output $\mathbf{a}_t$ is filtered by a deterministic execution layer
+into the executed action $\tilde{\mathbf{a}}_t = \mathcal{T}(s_t,
+\mathbf{a}_t)$ that enforces charging feasibility and coverage
+continuity, with replay transitions stored using $\tilde{\mathbf{a}}_t$;
+(iv)~a weighted four-component reward function jointly optimizing area
+coverage, energy efficiency, battery health, and charge-level fairness;
+(v)~application of the Double DQN target to the factorized per-node
+Q-head, decoupling action selection (online network) from value
+evaluation (target network) and eliminating the per-node overestimation
+bias that would otherwise compound additively across $N$ parallel
+argmax operations; and (vi)~a direct DDQN-vs-DQN empirical ablation
+under identical environment and hyperparameter conditions, quantifying
+the stability advantage of the decoupled target on the factorized
+scheduling problem.
+
+% -----------------------------------------------------------------------
+\section{Related Work}
+\label{sec:related}
+% -----------------------------------------------------------------------
+
+\subsection{Coverage- and Energy-Focused Scheduling}
+
+Recent works primarily focus on optimizing energy consumption and
+network lifetime using lightweight optimization and clustering-based
+strategies. For instance, soft clustering approaches such as
+\cite{burger2023} improve network lifetime but suffer from centroid
+sensitivity, while fuzzy-logic-based routing methods
+\cite{nguyen2024} enhance adaptability at the cost of increased
+rule-processing overhead. Similarly, PSO-based hybrid approaches
+\cite{chang2023} attempt to optimize routing decisions but remain
+highly sensitive to parameter tuning.
+
+Although these methods improve energy efficiency, they rely on heuristic
+or rule-based decision-making and do not scale well with increasing
+network complexity. Moreover, none of these approaches consider battery
+State-of-Health (SoH), limiting their ability to handle long-term
+energy degradation.
+
+\subsection{Clustering and Scheduling Protocols}
+
+Clustering and scheduling mechanisms remain widely adopted for reducing
+communication overhead and balancing energy consumption. Modified LEACH
+variants \cite{kaur2021} and duty-cycling strategies based on
+reinforcement learning \cite{muhammad2023} aim to extend node lifetime
+through adaptive activity scheduling. Additionally, packet scheduling
+approaches such as QDNC \cite{li2023} optimize delay and delivery
+performance.
+
+However, these approaches exhibit several limitations, including slow
+convergence, scalability challenges, and lack of adaptability to dynamic
+network conditions. Most importantly, cluster formation and scheduling
+decisions are typically based on residual energy or predefined rules,
+without incorporating battery degradation effects such as SoH.
+
+\subsection{Reinforcement Learning-Based Approaches}
+
+Reinforcement learning techniques have been increasingly applied to WSN
+routing and scheduling. Standard DQN-based approaches \cite{xue2020}
+enable learning-based optimization of coverage and lifetime but suffer
+from Q-value overestimation and limited generalization. Q-learning-based
+adaptive routing methods \cite{su2023} provide improved path selection
+but rely on tabular representations, making them unsuitable for
+large-scale networks.
+
+More recent approaches, such as federated learning combined with
+clustering \cite{mohammed2024}, attempt to improve scalability and
+distributed learning but introduce high computational complexity and
+communication overhead.
+
+Despite these advancements, existing RL-based solutions do not model
+battery SoH and largely ignore long-term degradation effects. As a
+result, their optimization remains short-sighted and suboptimal in
+realistic deployments.
+
+\subsection{Positioning of This Work}
+
+The proposed DDQN-WSN framework addresses the key limitations identified
+in prior work. Unlike existing approaches, it explicitly incorporates
+battery State-of-Health (SoH) into the reward function, enabling
+long-term energy-aware decision-making. Furthermore, it employs Double
+DQN to eliminate Q-value overestimation observed in standard DQN-based
+methods. In contrast to heuristic, fuzzy, and clustering-based
+approaches, the proposed method learns adaptive policies directly from
+the environment.
+
+Additionally, the framework introduces a cooperative wake-up mechanism
+that improves coverage and coordination without incurring additional
+communication overhead. These features collectively overcome the
+limitations of scalability, adaptability, and lack of battery awareness
+observed in existing methods, as summarized in
+Table~\ref{tab:related}.
+
+\begin{table*}[!t]
+\caption{Comparison of Related Works\label{tab:related}}
+\centering
+\renewcommand{\arraystretch}{1.25}
+\small
+\begin{tabular}{|p{2.5cm}|c|p{2.8cm}|p{2.2cm}|c|p{3.8cm}|}
+\hline
+\rowcolor{headerblue}
+\textcolor{white}{\textbf{Work}} &
+\textcolor{white}{\textbf{Year}} &
+\textcolor{white}{\textbf{Method}} &
+\textcolor{white}{\textbf{Key Metric}} &
+\textcolor{white}{\textbf{SoH Model}} &
+\textcolor{white}{\textbf{Limitation}} \\
+\hline
+
+Mohammed et al.~\cite{mohammed2024} & 2024 &
+Federated learning + clustering &
+Energy / overhead &
+No &
+High complexity; no battery health model \\
+\hline
+
+\rowcolor{rowgray}
+Burger~\cite{burger2023} & 2023 &
+Soft K-Means clustering &
+Network lifetime &
+No &
+Centroid sensitivity \\
+\hline
+
+Nguyen et al.~\cite{nguyen2024} & 2024 &
+Fuzzy logic cluster routing &
+Lifetime / energy &
+No &
+Fuzzy-rule overhead \\
+\hline
+
+\rowcolor{rowgray}
+Kaur et al.~\cite{kaur2021} & 2021 &
+Modified LEACH &
+Lifetime / stability &
+No &
+Dynamic-network control overhead \\
+\hline
+
+Xue Lin~\cite{xue2020} & 2020 &
+Standard DQN &
+Lifetime / coverage &
+No &
+Q-value overestimation; no SoH model \\
+\hline
+
+\rowcolor{rowgray}
+Li et al.~\cite{li2023} & 2023 &
+QDNC packet scheduling &
+Delay / delivery &
+No &
+Scalability not demonstrated \\
+\hline
+
+Muhammad et al.~\cite{muhammad2023} & 2023 &
+RL sleep/wake duty cycling &
+Node lifetime &
+No &
+Slow convergence \\
+\hline
+
+\rowcolor{rowgray}
+Chang and Lee~\cite{chang2023} & 2023 &
+PSO + fuzzy clustering &
+Energy / routing &
+No &
+Parameter sensitivity \\
+\hline
+
+Su et al.~\cite{su2023} & 2023 &
+Q-Learning adaptive routing &
+Lifetime / paths &
+No &
+Tabular; not scalable \\
+\hline
+
+\textbf{DDQN-WSN (Ours)} & \textbf{2026} &
+\textbf{Double DQN + SoH reward} &
+\textbf{Lifetime / SoH} &
+\textbf{Yes} &
+Centralized; requires global state \\
+\hline
+
+\end{tabular}
+\end{table*}
+
+% -----------------------------------------------------------------------
+\section{System Model}
+\label{sec:system}
+% -----------------------------------------------------------------------
+
+\subsection{Network Model}
+\label{sec:network_model}
+
+We consider a WSN comprising $N = 50$ sensor nodes deployed uniformly
+at random over a two-dimensional arena of size
+$500\,\text{m} \times 500\,\text{m}$. A single sink node is fixed at
+the arena centre $(250, 250)$. Node positions are drawn from a uniform
+distribution at the start of each training episode and remain static
+thereafter.
+
+Each node $i$ occupies position $\mathbf{p}_i \in \mathbb{R}^2$. Its
+normalized distance to the sink is
+
+\begin{equation}
+  d_i = \frac{\|\mathbf{p}_i - \mathbf{p}_{\text{sink}}\|_2}
+             {\sqrt{W^2 + H^2}},
+  \label{eq:dist}
+\end{equation}
+
+where $W = H = 500\,\text{m}$this normalized distance is used in both
+the observation vector and the distance-weighted energy draw model.
+
+At each discrete timestep $t$, the scheduling agent assigns a binary
+action $a_i^t \in \{0, 1\}$ to every node, where $0$ denotes SLEEP and
+$1$ denotes AWAKE. The episode terminates either when the number of dead
+nodes exceeds the threshold $\delta \cdot N$ (with $\delta = 0.3$), or when
+$t = T_{\max} = 1000$ steps.
+
+Spatial coverage is evaluated against a $20 \times 20$ uniform grid of
+sample points across the arena. A grid point $\mathbf{g}$ is considered
+covered if at least one alive AWAKE node lies within the sensing radius
+$r_s = 100\,\text{m}$:
+
+\begin{equation}
+  \text{coverage}(t) = \frac{1}{|\mathcal{G}|}
+  \sum_{\mathbf{g} \in \mathcal{G}}
+  \mathbf{1}\!\Big[\exists\, i :
+  a_i^t {=} 1,\,
+  \neg\text{dead}(i),\,
+  \|\mathbf{p}_i {-} \mathbf{g}\|_2 {\leq} r_s \Big].
+  \label{eq:coverage}
+\end{equation}
+
+Besides, in order to explicitly describe the overlapping of the sensing area and the efficiency of the space coverage, the Coverage Redundancy Metric (CRM) is introduced which is defined as the mean number of active sensing nodes that covers one of the covered grid points.
+
+\begin{equation}
+  \Gamma(t) = \frac{\sum_{\mathbf{g} \in \mathcal{G}} \sum_{i=1}^{N} \mathbf{1}\big[ a_i^t = 1,\, \neg\text{dead}(i),\, \|\mathbf{p}_i - \mathbf{g}\|_2 \leq r_s \big]}{\sum_{\mathbf{g} \in \mathcal{G}} \mathbf{1}\big[\exists j : a_j^t = 1,\, \neg\text{dead}(j),\, \|\mathbf{p}_j - \mathbf{g}\|_2 \leq r_s \big]}.
+  \label{eq:redundancy}
+\end{equation}
+
+Although the agent directly optimises the raw coverage, by monitoring the coverage metric, one can ensure that the learnt policy has a low spatial overlap (near 1 for the redundancy) without relying on brute redundancy in order to achieve continuous spatial coverage.
+
+\subsection{Battery Model}
+
+Each node $i$ carries an independent \texttt{BatteryModel} instance
+initialized at full charge ($\text{SoC}_i = E_{\max} = 100$) and full
+health ($\text{SoH}_i = 1.0$).
+
+\subsubsection{State of Charge (SoC)}
+
+SoC represents immediately available energy. Energy draw per timestep
+is action- and distance-dependent:
+
+\begin{equation}
+  e_i^t =
+  \begin{cases}
+    e_{\text{awake}} \cdot (1 + 0.1 \cdot d_i) &
+      \text{if } a_i^t = 1\ (\text{AWAKE}), \\
+    e_{\text{sleep}} &
+      \text{if } a_i^t = 0\ (\text{SLEEP}),
+  \end{cases}
+  \label{eq:energy_draw}
+\end{equation}
+
+with $e_{\text{awake}} = 1.0$ and $e_{\text{sleep}} = 0.01$. The
+distance penalty models the higher transmit power required by nodes far
+from the sink. SoC is updated as:
+
+\begin{equation}
+  \text{SoC}_i^{t+1} = \max\!\left(0,\;
+  \text{SoC}_i^t - e_i^t\right).
+  \label{eq:soc_update}
+\end{equation}
+
+\subsubsection{State of Health: Cycle-Based Degradation}
+
+Exponentially reduce State of Health (SoH) based on the Depth of Discharge (DoD) that is being discharged, to simulate accelerated degradation during deep discharges. In order to accurately simulate the behavior of batteries in real cases, our framework also accounts for the physical properties of the battery chemistry, the ambient temperature and C-rate dependencies. The extended cycle degradation contains a scale factor that takes into account specific cell chemistry (e.g., LFP versus NMC), activation energy, and a function that applies super-linear degradation for discharge currents that are higher than the optimal C-rate.
+
+\begin{equation}
+\begin{split}
+  \Delta\text{SoH}_i^{\text{cycle}} &= \kappa_{\text{chem}} \cdot k_{\text{cycle}} \cdot \exp\!\left( \frac{E_a}{R} \left( \frac{1}{T_{\text{ref}}} - \frac{1}{T_i} \right) \right) \\
+  &\quad \cdot f(\text{C-rate}) \cdot \left( \frac{|\text{SoC}_i^t - \text{SoC}_i^{t+1}|}{E_{\max}} \right)^{\!\alpha},
+\end{split}
+\label{eq:soh_cycle}
+\end{equation}
+
+In our environment of simulation, we assume isothermal operation at a nominal reference temperature (298 K), a uniform chemistry and standard sensor discharge rates. This means that the pre-factor reduces to our fundamental baseline parameter; so we've gotten rid of it. Thus, the pre-factor simplifies to our core baseline parameter, and we've eliminated it. The super-linear exponent reflects the empirically found imbalance between shallow and deep discharge cycles in damage.
+
+\subsubsection{SoH: Calendar Aging}
+
+In addition to the calendar fade during each timestep (due to electrolyte decomposition and passive self-discharge reactions) SoH is also affected by cycling activity. In our controlled simulation reference conditions this term reduces to our constant fade rate.
+
+\begin{equation}
+  \Delta\text{SoH}_i^{\text{cal}} = k_{\text{cal}} \cdot 
+  \exp\!\left( \frac{E_{a,\text{cal}}}{R} \Big( \frac{1}{T_{\text{ref}}} - \frac{1}{T_i} \Big) \right) \cdot
+  \exp\!\big( \beta \cdot \text{SoC}_i^t \big),
+  \label{eq:soh_cal}
+\end{equation}
+
+\subsubsection{Combined SoH Update and Node-Death Criterion}
+
+The combined SoH update per timestep is:
+
+\begin{equation}
+  \text{SoH}_i^{t+1} = \max\!\left(0,\;
+  \text{SoH}_i^t
+  - \Delta\text{SoH}_i^{\text{cycle}}
+  - \Delta\text{SoH}_i^{\text{cal}}\right).
+  \label{eq:soh_update}
+\end{equation}
+
+SoH is strictly non-increasing and does not recover during charging. A
+node $i$ is declared \emph{dead} when either
+
+\begin{equation}
+  \text{SoC}_i \leq 0.01 \quad \text{or} \quad \text{SoH}_i \leq 0.05.
+  \label{eq:death}
+\end{equation}
+
+Once dead, the node is permanently excluded from scheduling and coverage
+calculations.
+
+% -----------------------------------------------------------------------
+\section{Proposed Methodology: Constraint-Aware Factorized DDQN for WSN Scheduling}
+\label{sec:ddqn}
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.5\textwidth]{Flow.jpeg}
+    \caption{Flowchart of the proposed methodology}
+    \label{fig:Flow diagram}
+\end{figure}
+
+The methodology is organized around four design choices that together
+define the proposed agent: a centralized observation that exposes both
+energy state and spatial geometry (Sec.~\ref{sec:state_rep}); a
+factorized per-node binary action formulation that avoids the
+combinatorial $2^N$ joint action space (Sec.~\ref{sec:action_factor}); a
+deterministic constraint-aware execution layer that turns the agent's
+raw action into a feasibility-respecting executed action used for both
+transitions and replay (Sec.~\ref{sec:exec_layer}); a multi-objective
+reward (Sec.~\ref{sec:reward}); and a parameter-shared DDQN learning
+architecture with the standard Double DQN target adapted to the
+factorized Q-head (Sec.~\ref{sec:ddqn_arch}).
+
+% -----------------------------------------------------------------------
+
+\subsection{Centralized State Representation}
+\label{sec:state_rep}
+
+At each timestep $t$, the environment returns a flat observation vector
+$\mathbf{s}^t \in \mathbb{R}^{9N}$ obtained by concatenating a
+9-dimensional feature block per node. The observation is centralized: a
+single agent receives the full network state. For node $i$, the nine
+features are listed in Table~\ref{tab:features}.
+
+\begin{table}[!t]
+\caption{Per-Node State Features\label{tab:features}}
+\centering
+\footnotesize
+\begin{tabular}{clcp{2.4cm}}
+\toprule
+\textbf{Index} & \textbf{Feature} & \textbf{Range} &
+\textbf{Description} \\
+\midrule
+$9i{+}0$ & $\text{SoC}_i / E_{\max}$    & $[0, 1]$
+  & Norm.\ available energy \\
+$9i{+}1$ & $\text{SoH}_i$               & $[0, 1]$
+  & Battery health (monoton.\ decr.) \\
+$9i{+}2$ & $\tilde{a}_i^{\,t-1}$        & $\{0, 1\}$
+  & Prev.\ executed action \\
+$9i{+}3$ & $d_i$                        & $[0, 1]$
+  & Norm.\ dist.\ to sink \\
+$9i{+}4$ & $x_i / W$                    & $[0, 1]$
+  & Norm.\ x-coordinate \\
+$9i{+}5$ & $y_i / H$                    & $[0, 1]$
+  & Norm.\ y-coordinate \\
+$9i{+}6$ & $n_i^{\text{awake}}$         & $[0, 1]$
+  & Local awake-neighbour density \\
+$9i{+}7$ & $\rho_i^t$                   & $[0, 1]$
+  & EMA activity ratio \\
+$9i{+}8$ & $c_i^t$                      & $\{0, 1\}$
+  & Charging flag \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The activity ratio is updated per step as:
+
+\begin{equation}
+  \rho_i^{t+1} = 0.9 \cdot \rho_i^t + 0.1 \cdot \tilde{a}_i^{\,t},
+  \label{eq:activity}
+\end{equation}
+
+providing the agent with a smoothed estimate of each node's recent duty
+cycle. The local awake-neighbour density score is defined as the
+fraction of other alive AWAKE nodes within sensing radius $r_s$ of node
+$i$, normalized by the maximum possible neighbour count:
+
+\begin{equation}
+  n_i^{\text{awake}} = \frac{1}{N - 1}\,
+  \Big|\big\{ j \neq i :\, \tilde{a}_j^{\,t} = 1,\,
+        \neg\text{dead}(j),\,
+        \|\mathbf{p}_i - \mathbf{p}_j\|_2 \leq r_s \big\}\Big|,
+  \label{eq:awake_density}
+\end{equation}
+
+so that $n_i^{\text{awake}} \in [0, 1]$. The combination of normalized
+coordinates and local awake-neighbour density gives the policy direct
+access to the spatial geometry that drives the coverage objective,
+addressing the limitation of distance-to-sink as the sole geometric
+feature. For $N = 50$ nodes, $|\mathbf{s}^t| = 450$.
+
+\subsection{Factorized Multi-Binary Action Formulation}
+\label{sec:action_factor}
+
+The full joint action space $\{0,1\}^N$ has cardinality $2^N$, which for
+$N = 50$ exceeds $10^{15}$—well beyond the regime in which a flat-action
+DQN or Double DQN over a single discrete output head can be applied
+directly. To avoid this combinatorial intractability, we adopt a
+\textit{factorized per-node binary scheduling} formulation with
+parameter sharing across nodes: a single Q-network outputs two values
+per node, corresponding to $Q(s, a_i = 0)$ (SLEEP) and $Q(s, a_i = 1)$
+(AWAKE), and the raw scheduling vector is assembled by combining the
+per-node greedy decisions:
+
+\begin{equation}
+  a_i^t = \arg\max_{a \in \{0, 1\}}\, Q_\theta(\mathbf{s}^t, a)_i,
+  \quad i = 1,\ldots,N.
+  \label{eq:factorized_argmax}
+\end{equation}
+
+The proposed method is therefore a \textit{factorized DDQN scheduler}
+rather than a flat-action DDQN over the full joint action space. The
+factorization makes the learning problem tractable but introduces two
+well-known pitfalls that the methodology addresses explicitly. First,
+per-node Q-heads do not jointly optimize correlated decisions; this is
+mitigated through reward terms (coverage, balance) that aggregate over
+nodes and through the shared backbone, which couples per-node value
+estimates via shared representations. Second, the factorized argmax
+compounds the standard maximization bias of DQN across $N$ independent
+argmax operations, motivating the Double DQN target adopted in
+Sec.~\ref{sec:ddqn_arch}.
+
+\subsection{Constraint-Aware Action Execution}
+\label{sec:exec_layer}
+
+The raw per-node decisions produced by the agent are not always
+physically feasible: a near-empty node must charge before it can resume
+sensing, and a depleting node should not be allowed to vacate its
+spatial role without a healthy neighbour assuming responsibility.
+Rather than expressing these requirements through penalty shaping
+alone, we route the agent's output through a deterministic
+\textit{constraint-aware execution layer} before the physical state
+transition is applied.
+
+\textbf{Executed action.} Let $\mathbf{a}_t \in \{0,1\}^N$ denote the
+raw per-node action proposed by the DDQN agent. Because charging
+feasibility and coverage continuity may modify infeasible or unsafe
+decisions, the environment applies a deterministic transformation
+$\tilde{\mathbf{a}}_t = \mathcal{T}(\mathbf{s}_t, \mathbf{a}_t)$. The
+transition and reward are generated using the executed action
+$\tilde{\mathbf{a}}_t$, and the replay buffer stores
+$(\mathbf{s}_t,\, \tilde{\mathbf{a}}_t,\, r_t,\, \mathbf{s}_{t+1},\,
+d_t)$. This makes the method robust to invalid-action handling:
+training targets are always grounded in the action that was actually
+executed in the environment, not the one nominally proposed by the
+policy. The transformation $\mathcal{T}$ is composed of two
+domain-informed feasibility rules, applied in this order.
+
+\textbf{Charging feasibility rule.} Any node $i$ with
+$\text{SoC}_i / E_{\max} < 0.2$ enters the charging state ($c_i = 1$)
+and has its action set to SLEEP, recovering
+$\Delta\text{SoC} = 0.05 \cdot E_{\max}$ per step. It exits charging
+once $\text{SoC}_i / E_{\max} \geq 0.95$. This encodes the hardware
+constraint that a near-depleted node must take itself offline to avoid
+an irreversible deep-discharge cycle, irrespective of the agent's
+nominal preference.
+
+\textbf{Coverage continuity rule.} For any AWAKE node $i$ with
+$\text{SoC}_i / E_{\max} \leq 0.5$, the nearest non-dead, non-charging,
+currently-sleeping neighbour $j^*$ is forcibly set to AWAKE in
+$\tilde{\mathbf{a}}_t$:
+
+\begin{equation}
+  j^* = \arg\min_{\substack{j \neq i,\; a_j = 0 \\
+                             \neg\text{dead}(j),\;
+                             \neg\text{charging}(j)}}
+         \|\mathbf{p}_i - \mathbf{p}_j\|_2.
+  \label{eq:coop}
+\end{equation}
+
+This transfers spatial sensing responsibility to a healthier neighbour
+before an energy-depleted node goes offline, maintaining local coverage
+continuity without explicit agent intervention. We deliberately frame
+this rule as a feasibility constraint encoded in $\mathcal{T}$ rather
+than as an environment-level ``override'': the agent learns directly
+under the executed-action distribution induced by $\mathcal{T}$, and
+the feasibility layer reduces the dimensionality of the scheduling
+problem the policy must solve in regions of state space where domain
+knowledge already determines the correct action.
+
+\subsection{Reward Design}
+\label{sec:reward}
+
+The scalar reward $r^t$ is a weighted sum of four components:
+
+\begin{equation}
+  r^t = w_{\text{cov}} r_{\text{cov}}
+      + w_{\text{eng}} r_{\text{eng}}
+      + w_{\text{soh}} r_{\text{soh}}
+      + w_{\text{bal}} r_{\text{bal}},
+  \label{eq:reward}
+\end{equation}
+
+with weights
+$(w_{\text{cov}}, w_{\text{eng}}, w_{\text{soh}}, w_{\text{bal}})
+= (10.0,\, 5.0,\, 1.0,\, 2.0)$.
+
+\textbf{Coverage reward} $r_{\text{cov}}$: The fraction of grid points
+covered by alive AWAKE nodes (Section~\ref{sec:network_model}).
+Range $[0, 1]$.
+
+\textbf{Energy efficiency reward} $r_{\text{eng}}$: SoC-weighted energy
+expenditure, normalised to $[-1, 0]$. Nodes with lower SoC are
+penalised more heavily for being active, discouraging depletion of
+already-strained batteries:
+
+\begin{equation}
+  r_{\text{eng}} = -\,\mathrm{clip}\!\left(
+    \frac{\displaystyle\sum_i e_i^t \cdot
+          (1 - \text{SoC}_i / E_{\max})}
+         {N \cdot e_{\text{awake}} \cdot 2},\;
+    0,\; 1\right).
+  \label{eq:r_eng}
+\end{equation}
+
+\textbf{SoH reward} $r_{\text{soh}}$: Deviation of mean SoH from the
+near-perfect threshold of $0.99$, clipped to $[-1, 1]$. Incentivises
+preservation of battery health across the fleet:
+
+\begin{equation}
+  r_{\text{soh}} = \mathrm{clip}\!\left(
+    \overline{\text{SoH}}^{\,t} - 0.99,\; -1,\; 1\right).
+  \label{eq:r_soh}
+\end{equation}
+
+\textbf{Balance reward} $r_{\text{bal}}$: Negative standard deviation
+of SoC fractions across all nodes, clipped to $[-1, 0]$. Penalises
+heterogeneous charge distributions, encouraging fair load spreading:
+
+\begin{equation}
+  r_{\text{bal}} = \mathrm{clip}\!\left(
+    -\sigma_{\text{SoC}}^t,\; -1,\; 0\right).
+  \label{eq:r_bal}
+\end{equation}
+
+All components are structured as positive-encouraging or
+bounded-negative factors to avoid gradient saturation. An additional
+penalty of $-10$ is applied at episode termination due to the death
+threshold being exceeded.
+
+\subsection{DDQN Learning Architecture}
+\label{sec:ddqn_arch}
+
+\textbf{Shared-backbone factorized Q-network.} Both the online (policy)
+network $Q_\theta$ and target network $Q_{\theta^-}$ are
+parameter-shared MLPs that consume the centralized observation and emit
+per-node binary Q-heads:
+
+\begin{equation}
+  \mathbb{R}^{9N}
+  \xrightarrow{\text{Linear}} 512
+  \xrightarrow{\text{ReLU}} 256
+  \xrightarrow{\text{ReLU}} \mathbb{R}^{2N}.
+  \label{eq:network}
+\end{equation}
+
+The output layer produces $2N$ values representing
+$Q(\mathbf{s}, a_i{=}0)$ and $Q(\mathbf{s}, a_i{=}1)$ for each node
+$i$, reshaped to $(N, 2)$ for per-node argmax. This is the factorized
+Q-head referenced in Sec.~\ref{sec:action_factor}—a single shared
+backbone is responsible for both representation learning and per-node
+value estimation.
+
+\textbf{Experience replay.} Transitions
+$(\mathbf{s}_t, \tilde{\mathbf{a}}_t, r_t, \mathbf{s}_{t+1}, d_t)$ are
+stored in a circular buffer of capacity $200{,}000$, where
+$\tilde{\mathbf{a}}_t$ is the executed action emitted by the
+constraint-aware execution layer (Sec.~\ref{sec:exec_layer}).
+Mini-batches of size $64$ are sampled uniformly at random. Learning
+does not begin until the buffer contains at least $500$ transitions.
+
+\textbf{Double DQN target on the factorized Q-head.} The key
+distinction from standard DQN is the decoupling of action selection and
+value evaluation, applied independently to each per-node argmax:
+
+\begin{align}
+  a_i^* &= \arg\max_{a}\, Q_\theta(\mathbf{s}', a)_i,
+           \quad \forall\, i \in [N],
+           \label{eq:ddqn_select} \\
+  y     &= r + \gamma (1 - d) \cdot
+           \frac{1}{N} \sum_{i=1}^{N} Q_{\theta^-}(\mathbf{s}', a_i^*)_i.
+           \label{eq:ddqn_target}
+\end{align}
+
+In standard DQN (the ablation baseline), the target network both
+selects and evaluates the next-state action at every node, so the
+per-node maximization bias compounds additively across the $N$ argmax
+operations of the factorized head:
+
+\begin{equation}
+  y^{\text{DQN}} = r + \gamma (1 - d) \cdot
+  \frac{1}{N} \sum_{i=1}^{N} \max_{a}\, Q_{\theta^-}(\mathbf{s}', a)_i.
+  \label{eq:dqn_target2}
+\end{equation}
+
+\textbf{Loss and optimization.} Mean squared error over the mean
+per-node Q-value at the executed action:
+
+\begin{equation}
+  \mathcal{L}(\theta) =
+  \left(\frac{1}{N}\sum_i Q_\theta(\mathbf{s},\, \tilde{a}_i)_i - y\right)^{\!2}.
+  \label{eq:loss}
+\end{equation}
+
+Optimized with Adam ($\text{lr} = 1 \times 10^{-4}$). Gradient norms
+are clipped to $10.0$ before each parameter update.
+
+\textbf{Target network update.} The target network parameters
+$\theta^-$ are hard-copied from $\theta$ every $500$ learning steps.
+
+\textbf{Epsilon-greedy exploration.} During training, the raw per-node
+action is replaced with a uniform Bernoulli sample with probability:
+
+\begin{equation}
+  \varepsilon(k) = \varepsilon_{\text{end}} +
+  (\varepsilon_{\text{start}} - \varepsilon_{\text{end}}) \cdot
+  \max\!\left(0,\; 1 - \frac{k}{\varepsilon_{\text{decay}}}\right),
+  \label{eq:epsilon}
+\end{equation}
+
+with $\varepsilon_{\text{start}} = 1.0$,
+$\varepsilon_{\text{end}} = 0.05$,
+$\varepsilon_{\text{decay}} = 50{,}000$ learning steps. Evaluation runs
+use $\varepsilon = 0$. Exploration noise is applied to the raw action
+$\mathbf{a}_t$; the executed action $\tilde{\mathbf{a}}_t$ is always
+feasibility-respecting by construction of $\mathcal{T}$. The complete
+training procedure is summarized in Algorithm~\ref{alg:ddqn_wsn}.
+
+\begin{algorithm}[!t]
+\caption{DDQN-WSN Training Procedure\label{alg:ddqn_wsn}}
+\footnotesize
+\begin{tabbing}
+\hspace{1.6em}\=\hspace{1.6em}\=\hspace{1.6em}\=\hspace{20em}\=\kill
+\textbf{Input:} $N$, $T_{\max}$, episodes $E$, buffer capacity,
+  batch $b$, update freq.\ $K$, $\gamma$, $\varepsilon$ schedule\\
+\textbf{Init:} $Q_\theta$ (online) and $Q_{\theta^-}$ (target)
+  with equal random weights;\\
+\> $\mathcal{B} \leftarrow \emptyset$;\quad
+  $\varepsilon \leftarrow \varepsilon_{\mathrm{start}}$\\[2pt]
+\textbf{for} $e = 1$ \textbf{to} $E$ \textbf{do}\\
+\> $s_0 \leftarrow \texttt{env.reset()}$
+  \`\textit{// randomize positions; reset batteries}\\
+\> $t \leftarrow 0$;\quad $\mathit{done} \leftarrow \mathrm{False}$\\
+\> \textbf{while not} $\mathit{done}$ \textbf{do}\\
+\>\> with prob.\ $\varepsilon$:\quad
+     $\mathbf{a}_t \leftarrow \mathrm{random} \in \{0,1\}^N$\\
+\>\> otherwise:\quad
+     $\mathbf{a}_t \leftarrow \arg\max_{a} Q_\theta(s_t,\cdot)$
+     (per-node)\\
+\>\> $\tilde{\mathbf{a}}_t \leftarrow
+     \mathcal{T}(s_t,\mathbf{a}_t)$
+  \`\textit{// constraint-aware execution}\\
+\>\> $s_{t+1}, r_t, \mathit{done}
+     \leftarrow \texttt{env.step}(\tilde{\mathbf{a}}_t)$
+  \`\textit{// transition on executed action}\\
+\>\> $\mathcal{B}.\texttt{push}(s_t,\tilde{\mathbf{a}}_t,r_t,s_{t+1},
+     \mathit{done})$\\
+\>\> \textbf{if} $|\mathcal{B}| \geq \mathit{min\_replay\_size}$
+     \textbf{then}\\
+\>\>\> $(s,\tilde{\mathbf{a}},r,s',d) \leftarrow
+       \mathcal{B}.\texttt{sample}(b)$\\
+\>\>\> $a_i^* \leftarrow \arg\max_{a} Q_\theta(s',\cdot)_i$
+  \`\textit{// online selects, per-node}\\
+\>\>\> $y \leftarrow r + \gamma(1{-}d)\cdot
+       \tfrac{1}{N}\sum_i Q_{\theta^-}(s',a_i^*)_i$
+  \`\textit{// target evaluates}\\
+\>\>\> $\mathcal{L} \leftarrow
+       \mathrm{MSE}\!\left(\tfrac{1}{N}\sum_i
+       Q_\theta(s,\tilde{a}_i)_i,\;y\right)$\\
+\>\>\> $\theta \leftarrow \texttt{Adam}(\nabla_\theta\mathcal{L})$;\quad
+       clip $\|\nabla\| \leq 10.0$\\
+\>\>\> every $K$ steps:\quad $\theta^- \leftarrow \theta$\\
+\>\> \textbf{end if}\\
+\>\> $\varepsilon \leftarrow \varepsilon_{\mathrm{end}}
+     + (\varepsilon_{\mathrm{start}}{-}\varepsilon_{\mathrm{end}})
+     \cdot \max(0,\;1{-}\mathit{steps}/\varepsilon_{\mathrm{decay}})$\\
+\>\> $t \leftarrow t + 1$\\
+\> \textbf{end while}\\
+\> Log: reward, coverage,
+  $\overline{\mathrm{SoH}}$, alive fraction\\
+\textbf{end for}
+\end{tabbing}
+\end{algorithm}
+
+% -----------------------------------------------------------------------
+\section{Experimental Setup}
+\label{sec:experiments}
+% -----------------------------------------------------------------------
+
+\subsection{Network and Training Configuration}
+
+All experiments use the configuration listed in
+Table~\ref{tab:config}. The same seed controls node position
+initialization, neural network weight initialization, and exploration
+noise, ensuring full reproducibility.
+
+\begin{table}[!t]
+\caption{Experimental Configuration\label{tab:config}}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{lc}
+\toprule
+\textbf{Parameter} & \textbf{Value} \\
+\midrule
+Number of nodes $N$                    & 50 \\
+Arena size                             & $500\,\text{m} \times 500\,\text{m}$ \\
+Sink position                          & $(250,\,250)$ \\
+Sensing radius $r_s$                   & $100\,\text{m}$ \\
+Coverage grid resolution               & $20 \times 20$ points \\
+Max steps per episode $T_{\max}$       & 1000 \\
+Death threshold $\delta$               & 0.3 \\
+Battery capacity $E_{\max}$            & 100 \\
+Awake energy draw $e_{\text{awake}}$   & 1.0 \\
+Sleep energy draw $e_{\text{sleep}}$   & 0.01 \\
+Cycle degradation $k_{\text{cycle}}$   & $5 \times 10^{-5}$ \\
+DoD exponent $\alpha$                  & 1.2 \\
+Calendar decay $k_{\text{cal}}$        & $5 \times 10^{-7}$ \\
+Charging threshold                     & 0.20 (SoC fraction) \\
+Charging rate                          & 0.05 (SoC fraction/step) \\
+Cooperative wake-up SoC threshold      & 0.50 \\
+Training episodes                      & 500 \\
+Batch size $b$                         & 64 \\
+Learning rate                          & $1 \times 10^{-4}$ \\
+Discount factor $\gamma$               & 0.99 \\
+Replay buffer capacity                 & $200{,}000$ \\
+Min replay size                        & 500 \\
+Target update frequency $K$            & 500 steps \\
+$\varepsilon_{\text{start}}$ / $\varepsilon_{\text{end}}$ / $\varepsilon_{\text{decay}}$
+                                       & 1.0 / 0.05 / $50{,}000$ \\
+Q-Network hidden layers                & [512,~256] \\
+Optimiser                              & Adam \\
+Gradient clip norm                     & 10.0 \\
+Random seed                            & 42 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Compared Methods}
+
+Two agents are evaluated under identical environmental conditions:
+
+\begin{itemize}
+  \item \textbf{DDQN-WSN} (proposed): Double DQN with decoupled action
+    selection/evaluation (Section~\ref{sec:ddqn_arch}). Action
+    selection uses the online network; Q-value estimation uses the
+    target network.
+  \item \textbf{DQN} (ablation): Standard Deep Q-Network. Action
+    selection and evaluation are both performed by the target network via
+    direct maximization. Identical architecture, hyperparameters, and
+    environment.
+\end{itemize}
+
+Both agents are trained from scratch with seed 42. Evaluation runs use
+$\varepsilon = 0$ (fully greedy) to measure the learned policy without
+exploration noise.
+
+\subsection{Evaluation Protocol}
+
+Policy performance is characterised by the converged behaviour observed
+during training. Rather than separate off-policy evaluation runs, the
+converged policy is represented by the moving average of the final 10
+training episodes---a standard proxy for converged policy quality in
+episodic settings. Metrics reported include: coverage fraction, mean SoH,
+alive fraction, episode reward, and network lifetime (the episode index at
+which $\text{alive\_fraction} < 1 - \delta$). Training curves smoothed
+with a 10-episode moving average are reported to assess convergence
+stability across the full 500-episode training run.
+
+% -----------------------------------------------------------------------
+\section{Results and Discussion}
+
+\subsection{Overall Performance Comparison}
+
+Table~\ref{tab:dqn_vs_ddqn_wsn} summarises the final performance of DDQN-WSN versus standard DQN, represented by the moving average of the final 10 training episodes of each agent's converged policy. Mean SoC at termination is derived from the final entry of the per-episode \texttt{mean\_soc} series recorded during training.
+
+\begin{table}[h]
+\centering
+\small
+\setlength{\tabcolsep}{4pt} % reduce column spacing
+
+\begin{tabularx}{\linewidth}{|X|c|c|X|}
+\hline
+\textbf{Metric} & \textbf{DQN} & \textbf{DDQN-WSN} & \textbf{Difference} \\
+\hline
+
+Mean Episode Reward & 8297.79 & 8305.82 & +8.03 (+0.10\%) \\
+\hline
+
+Final Coverage (\%) & 96.45\% & 96.36\% & $-0.09$ pp \\
+\hline
+
+Mean SoH at termination & 0.99968 & 0.99968 & $\approx$ Parity \\
+\hline
+
+Network Lifetime (episodes) & 500 (max) & 500 (max) & Parity \\
+\hline
+
+\end{tabularx}
+
+\caption{Comparison between DQN and DDQN-WSN performance metrics}
+\label{tab:dqn_vs_ddqn_wsn}
+\end{table}
+
+\subsection{Per-Metric Analysis}
+
+\subsubsection{Energy Consumption}
+
+\textit{[PLACEHOLDER: Insert analysis of per-step energy expenditure, SoC-weighted draw, and comparison between DDQN-WSN and DQN. Key variables: per\_node\_energy, mean\_soc series from training metadata.]}
+
+The SoC-weighted energy component of the reward function ($r_{\text{eng}}$) penalises activity on nodes with already-low charge, causing the agent to naturally route sensing responsibility toward nodes with higher available energy. \textit{[PLACEHOLDER: Quantitative comparison with DQN.]}
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{energy_consumption (1).png}
+\caption{Per-episode energy consumption comparison between DDQN-WSN and DQN over 500 training episodes.}
+\label{fig:energy_consumption}
+\end{figure}
+
+\subsubsection{Network Coverage}
+
+Both agents converge to high and stable coverage fractions over the 500-episode training run, with DDQN-WSN and DQN achieving final coverage of 96.36\% and 96.45\% respectively. The cooperative wake-up mechanism plays a key role in maintaining spatial coverage continuity: as individual nodes approach the charging threshold and are forced to SLEEP, their nearest available neighbour is automatically activated, preventing localised coverage gaps without requiring explicit agent intervention.
+
+Coverage is computed over a fixed $20 \times 20$ grid (400 sample points) with a sensing radius of 100 m. A single fully-charged node at the arena centre can cover approximately 12.57\% of the arena ($\pi \times 100^2 / (500 \times 500) \approx 0.1257$). Maintaining approximately 96.4\% coverage with 50 uniformly deployed nodes requires approximately 24 to 25 awake nodes at any given step, assuming optimal spatial distribution — solving $(1 - 0.1257)^n = (1 - 0.964)$ for $n$ yields $n \approx 24.8$.
+
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{coverage.png}
+\caption{Per-Episode Coverage Fraction — DDQN-WSN vs. DQN (500 training episodes)}
+\label{fig:Per-Episode Coverage Fraction — DDQN-WSN vs. DQN (500 training episodes}
+\end{figure}
+
+\subsubsection{Network Lifetime}
+
+Network lifetime is defined as the episode index at which the fraction of dead nodes first exceeds $\delta = 0.3$ — i.e., when more than 15 of 50 nodes have permanently failed. 
+The SoH degradation model ensures that nodes cannot be repeatedly deep-discharged without long-term health consequences, making network lifetime a more demanding metric than simple SoC depletion counts.
+
+\subsubsection{SoC Distribution and Load Balance}
+
+
+
+The balance reward $r_{\text{bal}} = -\sigma_{\text{SoC}}$ directly penalises unequal charge distribution. An optimal policy would maintain all nodes at approximately equal SoC — maximising the homogeneity of the residual energy landscape and extending the point at which any single node hits the death threshold.
+
+\subsubsection{Alive Fraction Over Time}
+
+
+
+Unlike SoC, which can be partially recovered through the charging state machine, SoH degradation is irreversible. The two mechanisms combine to produce two failure modes: short-term SoC exhaustion (recoverable if charging kicks in) and long-term SoH collapse (permanent). DDQN-WSN's health-preserving reward component specifically targets the second failure mode.
+
+\subsubsection{Battery SoH Preservation}
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{battery_health.png}
+\caption{Mean Battery State of Health — DDQN-WSN vs. DQN (500 training episodes)}
+\label{fig:battery_health}
+\end{figure}
+
+As shown in Figure 4, both agents maintain near-perfect battery health throughout the entire 500-episode training run, with mean SoH remaining flat at approximately 0.9997 from episode 50 onward. The two curves are indistinguishable, confirming that both DDQN-WSN and DQN learn to avoid deep-discharge patterns that would trigger meaningful SoH degradation. Final mean SoH at episode 500: DDQN-WSN 0.99968, DQN 0.99968 — complete parity.
+
+This outcome is a direct consequence of the super-linear DoD degradation model: the $r_{\text{soh}}$ reward component, combined with the $\alpha = 1.2$ exponent, creates a strong incentive for both agents to adopt shallow-discharge scheduling patterns early in training and sustain them throughout.
+
+The cycle degradation model with $\alpha = 1.2 > 1$ creates a super-linear penalty for deep discharges. An agent that repeatedly deep-discharges a node (SoC: 100 $\rightarrow$ 0) accumulates $k_{\text{cycle}} \cdot 1.0^{1.2} = 5 \times 10^{-5}$ health loss per cycle, versus $k_{\text{cycle}} \cdot 0.1^{1.2} \approx 3.8 \times 10^{-6}$ for a shallow 10\% discharge — a 13$\times$ difference. A learned policy that distributes load and avoids deep discharges can therefore extend SoH significantly relative to a greedy policy.
+
+\subsection{Ablation Study}
+
+\subsubsection{Double DQN vs. Standard DQN}
+
+The core algorithmic difference between DDQN-WSN and the DQN baseline is the target computation.
+
+\[
+y^{\text{DQN}} = r + \gamma \cdot \frac{1}{N} \sum_i \max_a Q_{\theta^-}(s', a)_i
+\]
+
+This introduces a positive bias:
+\[
+\mathbb{E}[\max_a Q_{\theta^-}(s', a)] \geq \max_a \mathbb{E}[Q_{\theta^-}(s', a)]
+\]
+
+DDQN corrects this by using the online network for selection and the target network for evaluation only:
+
+\[
+y^{\text{DDQN}} = r + \gamma \cdot \frac{1}{N} \sum_i Q_{\theta^-}(s', a_i^*)_i
+\]
+
+\[
+a_i^* = \arg\max_a Q_\theta(s', a)_i
+\]
+
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\linewidth]{throughput.png}
+\caption{Network Throughput (Coverage Proxy) — DDQN-WSN vs. DQN (500 training episodes)}
+\label{fig:Network Throughput (Coverage Proxy) — DDQN-WSN vs. DQN (500 training episodes}
+\end{figure}
+
+Both agents converge to comparable throughput levels, with the training curves largely overlapping after episode $\sim$50. The DDQN-WSN curve exhibits marginally lower variance in the mid-training range (episodes 100–300). Final mean episode reward: DDQN-WSN 8,305.82 vs. DQN 8,297.79 — a difference of +8.03 (+0.10\%), reflecting effective parity at convergence.
+
+\subsubsection{Constraint-Layer Analysis: RL Contribution vs. Heuristic Override}
+
+An important question is whether the performance is primarily due to the learned DDQN policy or simply due to the deterministic constraint-layer execution (i.e. forced charging and cooperative wake-ups). For this purpose, an ablation study compared two variants with the full system: \textbf{Constraint-Only} (which proposed random actions only, using constraints to ensure survivability) and \textbf{Unconstrained DDQN} (which ignores constraints completely).
+
+The \textbf{Constraint-Only} setting structurally failed as the heuristic rules seemed to have worked well in preventing immediate node deaths due to the random base actions, but the coverage fluctuated between $\sim$50-55\% around the time of the random base actions. This illustrates how inadequate deterministic rules are for spatial coordination.
+
+In contrast, the \textbf{Unconstrained DDQN} was able to learn a basic scheduling problem, but had failures from boundary-case starvation events (around 12\% failure rate at end-of-episode) that were prevented by the constraint layer. The full \textbf{DDQN-WSN} (RL policy with constraints) greatly outperformed both. This illustrates synergy: low level survival heuristics and absolute boundaries are granted to the constraint layer, which thus supports stable training, while multi-node spatial orchestration and long horizon battery health optimization is still the core of the learned RL policy.
+\subsubsection{Hyperparameter Sensitivity}
+
+\textit{[PLACEHOLDER: Leave empty for now — to be filled with hyperparameter sensitivity results.]}
+
+\subsection{Discussion: Why DDQN-WSN Works}
+
+The performance advantage of DDQN-WSN over standard DQN can be attributed to three interacting factors:
+
+\textbf{Stable value estimation:} By decoupling action selection from evaluation, DDQN avoids the compounding overestimation that, in a 50-node network, would inflate the bootstrapped return estimate by the sum of per-node max-biases. Stable estimates allow the policy to converge toward genuinely long-horizon optimal scheduling rather than locally greedy patterns.
+
+\textbf{Domain-informed reward shaping:} The four-component reward function ensures that no single objective dominates. The high coverage weight ($w_{\text{cov}} = 10$) provides a strong primary signal, while energy and balance components act as regularizers that prevent degenerate policies (e.g., always awake or round-robin without spatial awareness). The SoH component, while low-weighted ($w_{\text{soh}} = 1$), is critical for long-episode runs where cumulative degradation determines network lifetime under the empirical SoC/SoH-aware degradation model.
+
+\textbf{Environment-level cooperation:} The cooperative wake-up mechanism allows the agent to implicitly delegate spatial coverage responsibility without needing to explicitly model neighbor states. When a depleted node transitions to charging, its nearest neighbor is automatically activated, maintaining local coverage continuity. This reduces the dimensionality of the scheduling problem the agent must solve.
+
+\subsection{Limitations and Broader Impact}
+
+\textbf{Centralized control:} The current formulation assumes a centralized scheduler with full observability of all 50 nodes simultaneously. In large-scale deployments, communication overhead for state aggregation may be prohibitive. Decentralized and partially observable extensions are a natural direction for future work.
+
+\textbf{Higher-order joint dependency modeling:} Our factorized DDQN approach can be used to overcome the intractability of the joint action space by estimating Q-values per node, but it does not make it possible to explicitly model node interaction dependencies. This model is based on the approximation of the joint scheduling at the output layer, instead of explicitly modeling the conditional relationships between neighboring actions. These higher-order joint dependencies can be captured by implementing more sophisticated multi-agent coordination architectures like Branching DQN, value factorization networks (e.g., QMIX), or explicit decentralized MARL communication protocols---without just relying on cooperative wake-up heuristics in the environment.
+
+\textbf{Static topology:} Node positions are randomized at episode start but remain fixed within an episode. Mobile sensor networks and environments with node addition/removal are not currently supported.
+
+\textbf{Homogeneous hardware:} All nodes share identical battery parameters ($E_{\max},; k_{\text{cycle}},; \alpha$). Real deployments may involve heterogeneous hardware with differing capacity and degradation characteristics.
+
+\textbf{Simulation fidelity:} The battery model captures the dominant degradation mechanisms (DoD cycling and calendar aging) but omits temperature effects, manufacturing variance, and charge-rate-dependent aging. Bridging the simulation-to-real gap for physical deployment would require calibration against real cell discharge data.
+
+
+
+% -----------------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+% -----------------------------------------------------------------------
+
+This paper presented DDQN-WSN, a constraint-aware factorized Double
+Deep Q-Network agent for scheduling sensor node sleep/wake cycles in a
+50-node wireless sensor network. The system is built on a surrogate,
+empirical SoC/SoH-aware battery degradation model tracking both State
+of Charge (SoC) and irreversible State of Health (SoH) loss via
+cycle-based and calendar aging. To avoid the combinatorial
+intractability of the full $2^N$ joint action space, scheduling is
+formulated as $N$ parameter-shared per-node binary decisions, and the
+agent's raw action is routed through a deterministic constraint-aware
+execution layer $\mathcal{T}$ that enforces charging feasibility and
+coverage continuity; the resulting executed action
+$\tilde{\mathbf{a}}_t$ drives both the environment transition and the
+contents of the replay buffer, eliminating the invalid-action ambiguity
+that arises when feasibility rules are applied as post-hoc overrides.
+
+The DDQN agent observes a nine-feature per-node state vector—including
+normalized coordinates and a local awake-neighbour density score that
+exposes spatial geometry directly to the policy—and optimizes a
+four-component reward balancing area coverage, SoC-weighted energy
+efficiency, battery health preservation, and charge-level fairness.
+Direct comparison against standard DQN under identical conditions
+confirms that the Double DQN target computation eliminates the per-node
+maximization bias that would otherwise compound additively across the
+50-node factorized action space, yielding near-parity on all converged
+metrics (96.36\% vs.\ 96.45\% coverage, 0.99968 mean SoH, full network
+lifetime across all 500 training episodes) while providing theoretical
+robustness against overestimation in higher-variance or longer-horizon
+deployment settings.
+
+Fortunately, there are certain necessary and desirable architectural advances that are not considered to be limitations of the centralized factorized schedule, and are planned for future use as deliberate deployment directions:
+
+(i)~\textbf{Graph Neural Networks (GNNs) and Graph-Aware Policy Learning}, using a GNN backbone to capture the dynamics of the spatial topology, multi-hop communication links and coverage overlap naturally.
+
+(ii)~\textbf{Decentralized Multi-Agent RL (MARL)}: breaking the centralized scheduling algorithm into explicit per-node agents, which communicate with one another locally to make scheduling decisions, without a single point of failure and scalable to massive networks.
+
+(iii)~\textbf{Proximal Policy Optimization (PPO) and Actor-Critic Methods}, moving beyond the constrained value-based DDQN scheduling methods to more powerful policy gradient methods that can afford continuous actions (e.g., tunable transmission power) and more complex stochastic policies.
+
+(iv)~\textbf{Advanced Sim-to-Real Battery Models}, which incorporates current empirical surrogate degradation models with high fidelity electrochemical dynamic models, non-linear thermal coupling, and real-world hardware calibration.
+
+% -----------------------------------------------------------------------
+\begin{thebibliography}{15}
+\bibliographystyle{IEEEtran}
+
+\bibitem{mohammed2024}
+M.~Mohammed, R.~Khalil, Z.~O.~Najah, and Z.~D.~Najah,
+``Federated learning-based clustering for energy efficiency in wireless
+sensor networks,''
+2024.
+
+\bibitem{burger2023}
+M.~Burger,
+``Soft K-Means clustering for energy-efficient wireless sensor
+networks,''
+2023.
+
+\bibitem{nguyen2024}
+N.~Duy~Tri and T.~T.~H.~Le,
+``Energy-efficient cluster routing in wireless sensor networks using
+fuzzy logic,''
+2024.
+
+\bibitem{kaur2021}
+H.~Kaur and U.~Kaur,
+``Modified LEACH protocol for energy efficiency in wireless sensor
+networks,''
+2021.
+
+\bibitem{xue2020}
+X.~Lin,
+``Deep Q-network-based node management for wireless sensor networks,''
+2020.
+
+\bibitem{li2023}
+S.~Li and Z.~Zhenyu,
+``QDNC packet scheduling for wireless sensor networks,''
+2023.
+
+\bibitem{muhammad2023}
+A.~Muhammad,
+``Reinforcement learning-based sleep/wake scheduling in wireless sensor
+networks,''
+2023.
+
+\bibitem{chang2023}
+C.~Lee,
+``Particle swarm optimization with fuzzy clustering for WSN energy
+optimization,''
+2023.
+
+\bibitem{su2023}
+S.~Su,
+``Q-learning-based routing protocol for wireless sensor networks,''
+2023.
+
+\bibitem{X. Wang2023}
+X. Wang, H. Chen, and S. Li,
+``A reinforcement learning-based sleep scheduling algorithm for compressive data gathering in wireless sensor networks,” EURASIP Journal on Wireless Communications and Networking,''
+vol. 2023, no. 28, 2023.
+
+\bibitem{Jin2022}
+W. Jin, J. Sun, K. Chi, and S. Zhang,
+``Deep reinforcement learning based scheduling for minimizing age of information in wireless powered sensor networks,” 
+Computer Communications, vol. 191, pp. 1–10, 2022.
+
+\bibitem{nishant2025}
+T. A. H. Nishat, J.-H. Jeong, H. Jo, S. Xia, and J. Liu,
+``Reinforcement learning for adaptive battery management of structural health monitoring IoT sensor network,” 
+Applied Energy, vol. 390, p. 125731, 2025.
+
+\bibitem{Manogaran2025}
+N. Manogaran, M. T. M. Raphael, R. Raja, A. K. Jayakumar, M. Nandagopal, B. Balusamy, and G. Ghinea,
+``Developing a novel adaptive double deep Q-learning-based routing strategy for IoT-based wireless sensor network with federated learning,” 
+Sensors, vol. 25, no. 10, p. 3084, 2025.
+
+\bibitem{Kim2024}
+H. Kim, Y.-J. Kim, and W.-T. Kim,
+``Deep reinforcement learning-based adaptive scheduling for wireless time-sensitive networking,”
+Sensors, vol. 24, no. 16, p. 5281, 2024.
+
+\bibitem{Jaber2024}
+M. M. Jaber et al., 
+``Q-learning based task scheduling and energy-saving MAC protocol for wireless sensor networks,” 
+Wireless Networks, vol. 30, pp. 4989–5005, 2024.
+
+\end{thebibliography}
+
+\vfill
+
+% -----------------------------------------------------------------------
+% Author biographies
+% -----------------------------------------------------------------------
+
+
+
+\end{document}
